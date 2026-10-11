@@ -1,0 +1,32 @@
+{
+  "name": "powerflo-card",
+  "version": "0.1.0",
+  "description": "A read-only, live power-flow card for Home Assistant and Deye hybrid inverters.",
+  "type": "module",
+  "main": "dist/powerflo-card.js",
+  "files": [
+    "dist/powerflo-card.js",
+    "README.md",
+    "hacs.json"
+  ],
+  "scripts": {
+    "build": "rollup --config rollup.config.js",
+    "dev": "rollup --config rollup.config.js --watch",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "verify": "npm run lint && npm run test:coverage && npm run build"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@vitest/coverage-v8": "5.0.3",
+    "eslint": "10.12.0",
+    "globals": "17.13.0",
+    "happy-dom": "20.14.6",
+    "rollup": "4.64.5",
+    "vitest": "5.0.3"
+  }
+}

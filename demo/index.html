@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PowerFlo development fixture</title>
+    <style>
+      body { margin: 0; padding: 24px; background: #09131f; color: #eef5ff; font-family: system-ui, sans-serif; }
+      powerflo-card { display: block; max-width: 1500px; margin: auto; }
+    </style>
+  </head>
+  <body>
+    <powerflo-card></powerflo-card>
+    <script type="module">
+      import "../dist/powerflo-card.js";
+
+      const card = document.querySelector("powerflo-card");
+      const entities = {
+        freshness: "binary_sensor.flow_fresh",
+        inverter_status: "sensor.inverter_status",
+        grid_connected: "binary_sensor.grid_connected",
+        solar_power: "sensor.solar_power",
+        pv1_power: "sensor.pv1_power",
+        pv2_power: "sensor.pv2_power",
+        pv3_power: "sensor.pv3_power",
+        battery_soc: "sensor.battery_soc",
+        battery_power: "sensor.battery_power",
+        battery_voltage: "sensor.battery_voltage",
+        battery_temperature: "sensor.battery_temperature",
+        grid_power: "sensor.grid_power",
+        grid_voltage: "sensor.grid_voltage",
+        grid_frequency: "sensor.grid_frequency",
+        load_power: "sensor.load_power",
+        solar_today: "sensor.solar_today",
+        grid_today: "sensor.grid_today",
+        load_today: "sensor.load_today",
+        battery_today: "sensor.battery_today",
+      };
+      card.setConfig({ entities });
+      const state = (value) => ({ state: String(value), attributes: {} });
+      card.hass = {
+        config: { time_zone: "Africa/Lagos" },
+        states: {
+          [entities.freshness]: state("on"), [entities.inverter_status]: state("normal"), [entities.grid_connected]: state("on"),
+          [entities.solar_power]: state(4820), [entities.pv1_power]: state(1620), [entities.pv2_power]: state(1580), [entities.pv3_power]: state(1620),
+          [entities.battery_soc]: state(85), [entities.battery_power]: state(512), [entities.battery_voltage]: state(53.4), [entities.battery_temperature]: state(32.4),
+          [entities.grid_power]: state(240), [entities.grid_voltage]: state(230.4), [entities.grid_frequency]: state(50), [entities.load_power]: state(450),
+          [entities.solar_today]: state(12.4), [entities.grid_today]: state(3.1), [entities.load_today]: state(10.2), [entities.battery_today]: state(1.8),
+        },
+        callApi: async () => [],
+      };
+    </script>
+  </body>
+</html>
