@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Document manual installation, resource registration, complete entity mappings, configuration defaults, image handling, history, updates, troubleshooting, and current HACS/layout limitations.
+
 - Make the outer card and every display panel transparent, remove the outer shadow, and inherit nested text and borders from Home Assistant themes.
 
 - Establish PowerFlo as a read-only Home Assistant custom card in plain JavaScript.
