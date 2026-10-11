@@ -24,6 +24,10 @@ PowerFlo reads Home Assistant entities. It does not connect to Modbus, call Home
 - Dark/light theme variables, narrow-card layout, and reduced-motion behavior.
 - Plain JavaScript and JSDoc; no TypeScript toolchain.
 
+## Transparent theme support
+
+The outer card, inverter panel, flow nodes, and Today summaries have transparent backgrounds and no outer shadow. Your dashboard background or wallpaper shows through every panel. Text and borders use Home Assistant's `primary-text-color`, `secondary-text-color`, `divider-color`, and card border/radius variables, including custom themes. Flow colors retain their domain meaning. Uploaded inverter images retain their original background; use a transparent PNG or WebP for an image that blends into the dashboard.
+
 ## Required entities
 
 | Mapping | Purpose |

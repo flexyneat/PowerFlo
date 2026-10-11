@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Make the outer card and every display panel transparent, remove the outer shadow, and inherit nested text and borders from Home Assistant themes.
+
 - Establish PowerFlo as a read-only Home Assistant custom card in plain JavaScript.
 - Add dynamic battery status and reversible grid/battery flow directions with hysteresis.
 - Add freshness-gated transform-only particles and visibility-aware pausing.

@@ -7,13 +7,16 @@
  * @type {Readonly<Record<string, string>>}
  */
 export const TOKENS = Object.freeze({
-  surface: "oklch(0.19 0.025 245)",
-  surfaceRaised: "oklch(0.23 0.026 245)",
-  surfaceSubtle: "oklch(0.215 0.022 245)",
-  text: "oklch(0.96 0.008 245)",
-  textMuted: "oklch(0.76 0.025 245)",
-  border: "oklch(0.52 0.045 245 / 0.42)",
-  borderStrong: "oklch(0.65 0.06 245 / 0.64)",
+  // Transparent surfaces let the dashboard supply its own wallpaper or theme canvas.
+  surface: "transparent",
+  surfaceRaised: "transparent",
+  surfaceSubtle: "transparent",
+  elevation: "none",
+  // Resolve theme colors at the token boundary so every nested label inherits them.
+  text: "var(--primary-text-color, CanvasText)",
+  textMuted: "var(--secondary-text-color, CanvasText)",
+  border: "var(--divider-color, currentColor)",
+  borderStrong: "var(--ha-card-border-color, var(--divider-color, currentColor))",
   solar: "oklch(0.82 0.17 82)",
   grid: "oklch(0.73 0.16 235)",
   battery: "oklch(0.72 0.17 305)",
