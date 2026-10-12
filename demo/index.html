@@ -37,7 +37,7 @@
         battery_today: "sensor.battery_today",
       };
       card.setConfig({ entities });
-      const state = (value) => ({ state: String(value), attributes: {} });
+      const state = (value) => ({ state: String(value), attributes: {}, last_updated: new Date().toISOString() });
       card.hass = {
         config: { time_zone: "Africa/Lagos" },
         states: {

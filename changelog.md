@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add a time-weighted recent-discharge runtime estimate in the battery panel, configurable reserve SOC/window/sample age, and explicit warmup/charging/static/stale/reserve states.
+- Document time-to-full constant-rate and SOC-band taper formulas; charging forecasts are not implemented yet.
+
 - Document manual installation, resource registration, complete entity mappings, configuration defaults, image handling, history, updates, troubleshooting, and current HACS/layout limitations.
 
 - Make the outer card and every display panel transparent, remove the outer shadow, and inherit nested text and borders from Home Assistant themes.

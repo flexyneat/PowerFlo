@@ -21,6 +21,14 @@ describe("safeImageSource", () => {
 });
 
 describe("normalizeConfig", () => {
+  it("normalizes runtime reserve, averaging, and freshness settings", () => {
+    expect(normalizeConfig().battery_reserve_soc).toBe(20);
+    const config = normalizeConfig({ battery_reserve_soc: 120, runtime_window_minutes: 0,
+      runtime_max_sample_age_seconds: "invalid" });
+    expect(config.battery_reserve_soc).toBe(100);
+    expect(config.runtime_window_minutes).toBe(1);
+    expect(config.runtime_max_sample_age_seconds).toBe(60);
+  });
   it("merges entity mappings and clamps flow thresholds", () => {
     const config = normalizeConfig({
       title: "X".repeat(100),

@@ -19,6 +19,7 @@ PowerFlo reads Home Assistant entities. It does not connect to Modbus, call Home
 ## Features
 
 - Dynamic `Static`, `Charging`, and `Discharging` battery status.
+- Smoothed runtime to a configurable reserve SOC, shown in the battery panel.
 - Configurable battery and grid sign conventions.
 - Reversible solar, grid, battery, and load arrows driven by current power state.
 - Freshness-gated transform-only flow particles.
@@ -150,6 +151,9 @@ battery_capacity_kwh: 32.14
 clock_format: "12"
 battery_positive: discharge
 grid_positive: import
+battery_reserve_soc: 20
+runtime_window_minutes: 5
+runtime_max_sample_age_seconds: 60
 entities:
   freshness: binary_sensor.deye_modbus_flow_fresh
   inverter_status: sensor.deye_running_status
@@ -234,6 +238,9 @@ Boolean mappings accept `on`, `true`, `connected`, `1`, `yes`, or `fresh` as tru
 | `grid_positive` | `import` | `import` or `export`: meaning of positive grid power. |
 | `flow_threshold_w` | `40` | Activation threshold, 1–5,000 W. |
 | `flow_release_w` | `20` | Battery/grid release threshold, between 0 and the activation threshold. |
+| `battery_reserve_soc` | `20` | Runtime stopping point, 0–100%. Does not change inverter settings. |
+| `runtime_window_minutes` | `5` | Discharge averaging window, 1–60 minutes. |
+| `runtime_max_sample_age_seconds` | `60` | Maximum power sample age/gap, 5–300 seconds; choose to suit gateway polling. |
 
 With `battery_positive: discharge`, +512 W means discharging and −512 W means charging. With `grid_positive: import`, positive power means grid → inverter; negative means inverter → grid. Arrowheads and moving particles follow these derived directions on the wide layout. Solar flows toward the inverter while producing; protected load flows away from it while powered.
 
@@ -259,7 +266,57 @@ Update `battery_capacity_kwh` when installed capacity changes. Capacity is manua
 
 The card implements both masonry sizing and Sections grid sizing. Use a wide card/section for the full topology. Below **50 rem of card-container width**, connectors and particles are hidden and nodes rearrange; below **32 rem**, nodes stack. Narrow layouts still display live values and battery/grid status, but currently do not show directional arrows.
 
-## Today sparklines and Recorder
+## Battery runtime estimate
+
+The battery panel displays **Estimated runtime** and its basis, for example `To 20% reserve · 512 W recent average`. This is time to the selected reserve at recent battery discharge, not guaranteed outage duration or time to zero SOC.
+
+```text
+Energy remaining (kWh) = capacity_kWh × max(SOC − reserve_SOC, 0) / 100
+Runtime (hours)        = energy_remaining_kWh / (average_discharge_W / 1000)
+```
+
+Discharge power is averaged by elapsed time using the battery entity's `last_reported` timestamp when exposed to the frontend, otherwise `last_updated`, and a rolling five-minute window by default. Each sample is held until the next sample; unrelated HA updates do not count as new observations. At least 30 seconds of continuous discharge observation is required. Samples collect while the card is loaded; reopening the card starts a new window. Recorder backfill and learned effective capacity are not implemented.
+
+The estimator uses the configured `battery_capacity_kwh`. Keep this aligned with effective bank capacity across the SOC scale; do not deduct reserve twice by supplying capacity already reduced for that reserve. Battery-side power already reflects DC draw for the actual inverter operation, so an extra inverter-efficiency factor is not applied to runtime.
+
+For an illustrative 32.14 kWh bank at 85% SOC, with 20% reserve and 512 W average discharge: remaining energy is 20.891 kWh and runtime is approximately **40 h 48 min**. Actual time varies with loads, solar contribution, battery ageing, temperature, BMS limits, and SOC accuracy. Solar assistance can extend this estimate; it is not a separate no-solar backup forecast.
+
+Lifecycle states are explicit:
+
+- **Collecting discharge data** while the window warms up.
+- **Charging** or **Not discharging** when a depletion estimate is inappropriate.
+- **Reserve reached** at/below reserve during discharge.
+- **Unavailable** for stale gateway data, invalid SOC/power, absent timestamps, or power samples older than the configured maximum age.
+
+Charging, static operation, stale data, configuration changes, and excessive sample gaps reset the discharge window. A timer checks sample age even when HA stops sending updates. Set the maximum age longer than the normal telemetry interval, with a reasonable margin; the default suits polling faster than one minute. This checks the power entity's age in addition to the existing gateway freshness mapping. If an integration suppresses identical power states and exposes no refreshed report timestamp, a stable reading can become unavailable here; confirm timestamp behavior during commissioning rather than replacing timestamps with unrelated dashboard updates.
+
+Edit reserve and averaging settings in the visual editor under **Flow behavior**, or use the YAML keys in the configuration table. Choose reserve for the meaning you want to show; match it to an actual off-grid limit or a higher preferred margin. The card never writes the inverter's shutdown/TOU configuration.
+
+### Formula design: time till battery full
+
+This formula is documented for the next feature; time-to-full is **not yet displayed or calculated by the card**.
+
+For a first estimate while charging, use positive **battery-side net charging power**, normalized using `battery_positive`, and a time-weighted charging average separate from the discharge window:
+
+```text
+Energy needed (kWh) = effective_capacity_kWh × max(target_SOC − SOC, 0) / 100
+Time to target (h)  = energy_needed_kWh / (average_net_charge_W / 1000)
+```
+
+For “full,” the default target would be 100%. A configurable lower target could instead be labelled “Time to 95%,” for example. At 85% SOC, 32.14 kWh capacity, and 2 kW net charging, the constant-rate estimate to 100% is **2 h 24 min**. This assumes the same charging rate continues and is not a forecast of taper completion.
+
+Net battery input power should not be confused with gross PV generation or grid import: household demand consumes part of those inputs. If using net battery-side power, avoid multiplying by inverter conversion efficiency again. A calibrated battery energy-retention factor could be added if measurements show a systematic charge-side bias.
+
+Near full, BMS current limits, cell balancing, and charge taper can extend the time. A more accurate later model can learn battery-side charging power by SOC band during comparable continuous charging sessions:
+
+```text
+Time to target (h) ≈ Σ [effective_capacity_kWh × SOC_band_width / 100
+                        ÷ expected_net_charge_kW_in_that_band]
+```
+
+Equivalently, integrate `capacity_kWh / 100 × dSOC / expected_charge_kW(SOC)` from current SOC to target. Future implementation should exclude stale data and interruptions, separate solar-limited sessions from battery-limited taper, and show “At recent charge rate” until sufficient taper history exists. Zero charging power, paused charging, unmet target limits, or missing data should produce a state label rather than infinity. Only confirmed target SOC should be labelled “Target reached.”
+
+## Recorder history behavior
 
 PowerFlo requests Recorder history from midnight in Home Assistant's timezone for the four `*_today` entities, then appends incoming live values. These lines show **daily energy counter history**, not instantaneous power curves. Ensure the mapped sensors are not excluded from [Recorder](https://www.home-assistant.io/integrations/recorder/).
 

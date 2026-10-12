@@ -7,6 +7,7 @@ import { FlowAnimator } from "./flow-engine.js";
 import { appendHistoryPoint, downsample, loadTodayHistory, sparklinePath } from "./history.js";
 import { batteryBankIcon, gridIcon, inverterIcon, loadIcon, solarIcon } from "./icons.js";
 import { deriveModel } from "./state-model.js";
+import { BatteryRuntimeEstimator, formatRuntime } from "./runtime.js";
 import { cardStyles } from "./styles.js";
 
 const FLOW_NAMES = Object.freeze(["solar", "grid", "battery", "load"]);
@@ -55,6 +56,7 @@ export class PowerFloCard extends HTMLElement {
     this.historyKey = "";
     this.history = new Map();
     this.polarity = { battery: "stopped", grid: "stopped" };
+    this.runtimeEstimator = new BatteryRuntimeEstimator();
     this.animators = new Map();
     this.visible = true;
     this.reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
@@ -65,6 +67,7 @@ export class PowerFloCard extends HTMLElement {
    * @param {Object} rawConfig Raw Lovelace configuration.
    */
   setConfig(rawConfig) {
+    this.runtimeEstimator.reset();
     this.config = normalizeConfig(rawConfig);
     const errors = validateConfig(this.config);
     if (errors.length) throw new Error(errors.join("; "));
@@ -89,6 +92,10 @@ export class PowerFloCard extends HTMLElement {
     if (!this.rendered) this.render();
     this.clockTimer = window.setInterval(() => this.updateClock(), 1000);
     this.updateClock();
+    // Recheck sample age even when HA stops sending state events; do not resample all card histories.
+    this.runtimeTimer = window.setInterval(() => {
+      if (this.hassValue) this.updateRuntime(deriveModel(this.hassValue.states, this.config, this.polarity));
+    }, 1000);
     this.visibilityObserver = new IntersectionObserver(([entry]) => {
       this.visible = entry?.isIntersecting ?? true;
       for (const animator of this.animators.values()) animator.setVisible(this.visible && !document.hidden);
@@ -107,6 +114,8 @@ export class PowerFloCard extends HTMLElement {
   /** Releases timers, observers, animation frames, and listeners. */
   disconnectedCallback() {
     window.clearInterval(this.clockTimer);
+    window.clearInterval(this.runtimeTimer);
+    this.runtimeEstimator.reset();
     if (this.pendingFrame) cancelAnimationFrame(this.pendingFrame);
     this.visibilityObserver?.disconnect();
     document.removeEventListener("visibilitychange", this.visibilityHandler);
@@ -152,6 +161,13 @@ export class PowerFloCard extends HTMLElement {
     const root = this.shadowRoot;
     root.innerHTML = `<style>${cardStyles()}</style><ha-card><div class="shell"><header class="header"><div class="identity"><div class="title"></div><div class="status"></div></div><div class="freshness"></div><time class="clock"></time></header><div class="notice" role="status" aria-live="polite"></div><main class="topology"><section class="node solar"><div class="node-icon">${solarIcon()}</div><div class="node-content"><div class="node-title">Solar</div><div class="node-value" data-value="solar"></div><div class="mppts"><div class="mppt">MPPT 1<strong data-value="pv1"></strong></div><div class="mppt">MPPT 2<strong data-value="pv2"></strong></div><div class="mppt">MPPT 3<strong data-value="pv3"></strong></div></div></div></section><section class="node grid"><div class="node-icon">${gridIcon()}</div><div class="node-content"><div class="node-title">Grid</div><div class="node-value" data-value="grid"></div><div class="node-meta" data-meta="grid"></div></div></section><section class="inverter"><div class="inverter-visual"></div><div class="inverter-name"></div><div class="inverter-model"></div><div class="inverter-capacity"></div><div class="inverter-state"></div></section><section class="node battery"><div class="node-icon">${batteryBankIcon()}</div><div class="node-content"><div class="node-title">Battery</div><div class="node-value" data-value="soc"></div><div class="node-meta" data-value="battery"></div><div class="node-meta" data-meta="battery"></div><div class="node-meta" data-meta="battery-capacity"></div></div></section><section class="node load"><div class="node-icon">${loadIcon()}</div><div class="node-content"><div class="node-title">Protected load</div><div class="node-value" data-value="load"></div></div></section><svg class="connectors" viewBox="0 0 1000 600" preserveAspectRatio="none" aria-hidden="true"><defs>${FLOW_NAMES.map((name) => `<marker id="arrow-${name}" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 10 5 0 10Z" fill="var(--pf-${name === "solar" ? "solar" : name === "grid" ? "grid" : name === "battery" ? "battery" : "load"})"/></marker>`).join("")}</defs>${this.flowMarkup("solar", "M330 145 H430 V245")}${this.flowMarkup("grid", "M670 145 H570 V245")}${this.flowMarkup("battery", "M330 455 H430 V355")}${this.flowMarkup("load", "M670 455 H570 V355")}</svg></main><footer class="summaries"><div class="today">Today</div>${SUMMARY_NAMES.map((name) => `<section class="summary" data-domain="${name}"><div class="summary-header"><span>${name === "solar" ? "Solar" : label(name)}</span><span class="summary-value" data-summary-value="${name}"></span></div><svg class="spark" viewBox="0 0 100 36" preserveAspectRatio="none" aria-hidden="true"><path class="area" data-summary-area="${name}"></path><path data-summary-path="${name}"></path></svg><div class="spark-labels"><span>12 AM</span><span>Now</span></div></section>`).join("")}</footer></div></ha-card>`;
     this.rendered = true;
+    const runtime = document.createElement("div");
+    runtime.className = "node-meta";
+    runtime.dataset.meta = "battery-runtime";
+    const basis = document.createElement("div");
+    basis.className = "node-meta";
+    basis.dataset.meta = "runtime-basis";
+    this.shadowRoot.querySelector(".battery .node-content").append(runtime, basis);
     this.createAnimators();
     this.updateStaticText();
   }
@@ -225,6 +241,7 @@ export class PowerFloCard extends HTMLElement {
     this.setText('[data-value="soc"]', formatValue(model.values.batterySoc, "%", 0));
     this.setText('[data-value="battery"]', formatPower(model.values.batteryPower));
     this.setText('[data-meta="battery"]', `${label(model.battery)} · ${formatValue(model.values.batteryVoltage, "V", 1)} · ${formatValue(model.values.batteryTemperature, "°C", 1)}`);
+    this.updateRuntime(model);
     this.setText('[data-value="load"]', formatPower(model.values.loadPower));
     const today = { solar: model.values.solarToday, grid: model.values.gridToday, load: model.values.loadToday, battery: model.values.batteryToday };
     for (const name of SUMMARY_NAMES) this.setText(`[data-summary-value="${name}"]`, formatValue(today[name], "kWh", 1));
@@ -232,6 +249,27 @@ export class PowerFloCard extends HTMLElement {
     this.updateHistory();
     const powers = { solar: model.values.solarPower, grid: model.values.gridPower, battery: model.values.batteryPower, load: model.values.loadPower };
     for (const name of FLOW_NAMES) this.applyFlow(name, model.flows[name], powers[name], model.dataState === "fresh");
+  }
+
+  /**
+   * Applies the smoothed estimate without re-sampling unrelated Home Assistant updates.
+   * @param {Object} model Current battery-domain render model.
+   */
+  updateRuntime(model) {
+    const now = Date.now();
+    const entity = this.hassValue.states[this.config.entities.battery_power];
+    const sampleTime = Date.parse(entity?.last_reported ?? entity?.last_updated ?? "");
+    const result = this.runtimeEstimator.observe({
+      now, sampleTime, power: model.values.batteryPower === null ? null : Math.abs(model.values.batteryPower),
+      soc: model.values.batterySoc, mode: model.battery, fresh: model.dataState === "fresh",
+      capacityKwh: this.config.battery_capacity_kwh, reserveSoc: this.config.battery_reserve_soc,
+      windowMs: this.config.runtime_window_minutes * 60_000,
+      maxAgeMs: this.config.runtime_max_sample_age_seconds * 1000,
+    });
+    const labels = { warming: "Collecting discharge data", charging: "Charging", static: "Not discharging",
+      unavailable: "Unavailable", reserve: "Reserve reached" };
+    this.setText('[data-meta="battery-runtime"]', `Estimated runtime: ${result.status === "ready" ? formatRuntime(result.hours) : labels[result.status]}`);
+    this.setText('[data-meta="runtime-basis"]', `To ${this.config.battery_reserve_soc}% reserve${result.status === "ready" ? ` · ${Math.round(result.averageWatts)} W recent average` : ""}`);
   }
 
   /**
