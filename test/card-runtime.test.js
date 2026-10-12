@@ -2,6 +2,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PowerFloCard } from "../src/card.js";
 import { DEFAULT_CONFIG } from "../src/config.js";
+import { connectorPath } from "../src/connector-geometry.js";
+import { FLOW_GEOMETRY } from "../src/tokens.js";
 
 if (!customElements.get("test-runtime-card")) customElements.define("test-runtime-card", PowerFloCard);
 
@@ -66,6 +68,47 @@ describe("battery panel runtime", () => {
     vi.setSystemTime(new Date("2026-10-12T10:01:01Z"));
     card.updateModel();
     expect(card.shadowRoot.querySelector('[data-meta="battery-runtime"]').textContent).toContain("Unavailable");
+  });
+});
+
+describe("visible flow arrows and forecast illustrations", () => {
+  it("keeps every route segment outside the image rectangle including overlapping panel anchors", () => {
+    const canvas = { left: 0, top: 0, width: 1000, height: 600 };
+    const inverter = { left: 400, right: 600, top: 120, bottom: 480, width: 200, height: 360 };
+    for (const name of ["solar", "grid", "battery", "load"]) {
+      const left = name === "solar" || name === "battery";
+      const node = { left: left ? 0 : 700, right: left ? 300 : 1000, top: 160, height: 280 };
+      const path = connectorPath(canvas, inverter, node, name);
+      const numbers = path.match(/-?\d+(?:\.\d+)?/g).map(Number);
+      const [fromX, fromY, portX, endY] = numbers;
+      const upper = name === "solar" || name === "grid";
+      expect(endY).toBe(upper ? inverter.top - FLOW_GEOMETRY.arrowClearance : inverter.bottom + FLOW_GEOMETRY.arrowClearance);
+      // Every leg stays on an external lane or above/below the image; no arrow can be occluded.
+      expect(left ? fromX < inverter.left : fromX > inverter.right).toBe(true);
+      expect(upper ? fromY < inverter.top : fromY > inverter.bottom).toBe(true);
+      expect(portX).toBeGreaterThan(inverter.left);
+      expect(portX).toBeLessThan(inverter.right);
+    }
+  });
+  it("normalizes offset and scaled layouts without shrinking the physical arrow clearance", () => {
+    const path = connectorPath({ left: 50, top: 25, width: 2000, height: 1200 },
+      { left: 850, right: 1250, top: 265, bottom: 985, width: 400 },
+      { right: 650, top: 105, height: 160 }, "solar");
+    expect(path).toBe("M300 60 H470 V112");
+  });
+  it("shows state-aware icons beside all five estimates, never in energy summaries", () => {
+    const card = fixture({ battery_positive: "charge" });
+    card.updateModel();
+    const root = card.shadowRoot;
+    expect(root.querySelectorAll(".forecast-icon svg")).toHaveLength(5);
+    expect(root.querySelector('[data-forecast-icon="runtime"]').dataset.status).toBe("charging");
+    expect(root.querySelector('[data-forecast-icon="50"]').dataset.status).toBe("target");
+    expect(root.querySelector('[data-forecast-icon="75"]').dataset.status).toBe("target");
+    expect(root.querySelector('[data-forecast-icon="95"]').dataset.status).toBe("warming");
+    expect(root.querySelectorAll(".summary .forecast-icon")).toHaveLength(0);
+    card.hassValue.states[card.config.entities.freshness].state = "off";
+    card.updateModel();
+    expect(root.querySelector('[data-forecast-icon="full"]').dataset.status).toBe("unavailable");
   });
 });
 

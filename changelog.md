@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Keep connector approaches and arrowheads outside the full inverter-image rectangle, including custom uploaded art.
+- Add state-aware battery/status illustrations beside runtime, 50%, 75%, 95%, and full/target estimates; retain icon-free energy summaries.
+
 - Rebuild the visual hierarchy to follow the supplied reference: large detailed icons/readings, generated transparent inverter illustration, editable overlay labels, clearer flow routes, and a separate milestone strip.
 - Add data-quality confidence based on observed duration, count, age, and variability; cap assumed future solar/taper projections at Moderate.
 - Project 50%, 75%, 95%, and full/configured target using measured net charge, modeled solar share, a sunset/horizon cap, optional solar-power forecast, and configurable assumed high-SOC taper.

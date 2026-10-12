@@ -19,3 +19,25 @@ export function loadIcon() {
 export function batteryBankIcon() {
   return `<svg viewBox="0 0 110 140" aria-hidden="true"><g fill="none" stroke="var(--pf-text-muted)" stroke-width="2.5" stroke-linejoin="round"><path d="M10 10h88v120H10zM17 10V5h75v5M10 49h88M10 89h88M7 131h94v5H7z"/><path d="M16 20v18M16 60v18M16 100v18M23 25h48v17H23zM23 65h48v17H23zM23 105h48v17H23z"/></g><g fill="currentColor" fill-opacity=".65"><rect x="25" y="27" width="44" height="13" rx="2"/><rect x="25" y="67" width="44" height="13" rx="2"/><rect x="25" y="107" width="44" height="13" rx="2"/></g><g stroke="var(--pf-live)" stroke-width="2"><path d="M81 26h8M81 66h8M81 106h8"/></g></svg>`;
 }
+
+/**
+ * Illustrates an estimate's state without relying on color or motion alone.
+ * @param {string} status Ready, target, charging, warming, unavailable, or paused state.
+ * @param {number|null} target SOC milestone, or null for runtime.
+ * @returns {string} Trusted decorative battery and status-badge SVG.
+ */
+export function forecastIcon(status, target = null) {
+  const level = target === null ? 0.5 : Math.max(0, Math.min(1, target / 100));
+  const fillHeight = 22 * level;
+  const badges = {
+    target: '<path d="m29 34 4 4 8-9"/>',
+    reserve: '<path d="m29 34 4 4 8-9"/>',
+    charging: '<path d="m36 26-7 9h6l-2 8 9-11h-7Z"/>',
+    ready: '<circle cx="35" cy="35" r="9"/><path d="M35 29v6l4 3"/>',
+    warming: '<circle cx="35" cy="35" r="9"/><path d="M35 29v6l4 3"/>',
+    "solar-limited": '<circle cx="35" cy="35" r="5"/><path d="M35 25v-3M35 45v-3M25 35h-3M45 35h-3M28 28l-2-2M42 42l-2-2M42 28l2-2M26 42l2-2"/>',
+    unavailable: '<circle cx="35" cy="35" r="9"/><path d="M35 29v7M35 40v1"/>',
+  };
+  const badge = badges[status] ?? '<circle cx="35" cy="35" r="9"/><path d="M32 31v8M38 31v8"/>';
+  return `<svg viewBox="0 0 48 48" aria-hidden="true"><g fill="none" stroke="var(--pf-text-muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 7V3h10v4M9 7h20v35H9Z"/></g><rect x="13" y="${38 - fillHeight}" width="12" height="${fillHeight}" rx="1" fill="currentColor" fill-opacity=".35"/><g fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">${badge}</g></svg>`;
+}

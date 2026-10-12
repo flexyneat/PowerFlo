@@ -37,6 +37,7 @@ export const TOKENS = Object.freeze({
   borderWidth: "0.0625rem",
   iconSm: "1.25rem",
   iconMd: "2rem",
+  forecastIconSize: "2rem",
   iconLg: "7rem",
   touch: "2.75rem",
   cardMinHeight: "34rem",
@@ -85,7 +86,7 @@ export const TOKENS = Object.freeze({
 export const BREAKPOINTS = Object.freeze({ compact: "58rem", narrow: "34rem" });
 
 /** Normalized connector canvas and inverter attachment positions. */
-export const FLOW_GEOMETRY = Object.freeze({ width: 1000, height: 600, upperAnchor: 0.1, lowerAnchor: 0.93, leftPort: 0.35, rightPort: 0.65, sourceUpper: 0.25, sourceLower: 0.75 });
+export const FLOW_GEOMETRY = Object.freeze({ width: 1000, height: 600, arrowClearance: 16, leftPort: 0.35, rightPort: 0.65, sourceUpper: 0.25, sourceLower: 0.75 });
 
 /**
  * Converts tokens into CSS custom properties scoped to the card.

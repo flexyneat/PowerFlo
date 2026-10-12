@@ -2,12 +2,12 @@
 import { normalizeConfig, validateConfig } from "./config.js";
 import { FlowAnimator } from "./flow-engine.js";
 import { appendHistoryPoint, downsample, sparklinePath } from "./history.js";
-import { batteryBankIcon, gridIcon, loadIcon, solarIcon } from "./icons.js";
+import { batteryBankIcon, forecastIcon, gridIcon, loadIcon, solarIcon } from "./icons.js";
 import { loadPeriodHistory, periodEnergy, periodRange } from "./period-history.js";
 import { deriveModel, numericState } from "./state-model.js";
 import { BatteryChargeEstimator, BatteryRuntimeEstimator, formatRuntime } from "./runtime.js";
 import { cardStyles } from "./styles.js";
-import { FLOW_GEOMETRY } from "./tokens.js";
+import { connectorPath } from "./connector-geometry.js";
 import { estimateConfidence, projectCharge } from "./charge-model.js";
 import { nearestObservation } from "./chart-inspection.js";
 import { loadEnergyStatistics } from "./statistics.js";
@@ -163,17 +163,9 @@ export class PowerFloCard extends HTMLElement {
     const canvas = this.shadowRoot.querySelector(".topology").getBoundingClientRect();
     if (!canvas.width || !canvas.height) return;
     const inverter = this.shadowRoot.querySelector(".inverter-visual").getBoundingClientRect();
-    const x = coordinate => (coordinate - canvas.left) / canvas.width * FLOW_GEOMETRY.width;
-    const y = coordinate => (coordinate - canvas.top) / canvas.height * FLOW_GEOMETRY.height;
     for (const name of FLOW_NAMES) {
       const node = this.shadowRoot.querySelector(`.node.${name}`).getBoundingClientRect();
-      const left = name === "solar" || name === "battery";
-      const upper = name === "solar" || name === "grid";
-      const fromX = x(left ? node.right : node.left);
-      const fromY = y(node.top + node.height * (upper ? FLOW_GEOMETRY.sourceUpper : FLOW_GEOMETRY.sourceLower));
-      const toX = x(inverter.left + inverter.width * (left ? FLOW_GEOMETRY.leftPort : FLOW_GEOMETRY.rightPort));
-      const toY = y(inverter.top + inverter.height * (upper ? FLOW_GEOMETRY.upperAnchor : FLOW_GEOMETRY.lowerAnchor));
-      this.shadowRoot.querySelector(`[data-flow-path="${name}"]`).setAttribute("d", `M${fromX} ${fromY} H${toX} V${toY}`);
+      this.shadowRoot.querySelector(`[data-flow-path="${name}"]`).setAttribute("d", connectorPath(canvas, inverter, node, name));
     }
   }
 
@@ -209,6 +201,16 @@ export class PowerFloCard extends HTMLElement {
       <footer class="summaries">${SUMMARY_NAMES.map(name => `<section class="summary" data-domain="${name}"><div class="summary-header">${label(name)}<span class="summary-value" data-summary-value="${name}"></span></div><div class="summary-coverage" data-coverage="${name}"></div><svg class="spark" viewBox="0 0 100 36" preserveAspectRatio="none" aria-hidden="true"><path class="area" data-summary-area="${name}"></path><path data-summary-path="${name}"></path><line class="chart-cursor" data-cursor="${name}" y1="0" y2="36" hidden></line></svg><div class="inspection-value" data-inspection="${name}"></div><div class="spark-labels"><span data-period-start></span><span>Now</span></div></section>`).join("")}</footer>
       <div class="chart-inspector"><label for="history-cursor">Inspect recorded time</label><input id="history-cursor" type="range" min="0" max="1000" value="1000"><output class="inspection-time" aria-live="polite">Move over a graph or use the time slider</output></div>
     </div></ha-card>`;
+    for (const [index, item] of [...this.shadowRoot.querySelectorAll(".forecast-item")].entries()) {
+      const content = document.createElement("div");
+      content.className = "forecast-content";
+      content.append(...item.childNodes);
+      const icon = document.createElement("div");
+      icon.className = "forecast-icon";
+      icon.dataset.forecastIcon = ["runtime", "50", "75", "95", "full"][index];
+      icon.setAttribute("aria-hidden", "true");
+      item.append(icon, content);
+    }
     for (const button of this.shadowRoot.querySelectorAll("[data-period]")) button.addEventListener("click", () => this.selectPeriod(button.dataset.period));
     // Channel readings use the full solar panel width rather than crowding the power column.
     this.shadowRoot.querySelector(".solar").append(this.shadowRoot.querySelector(".mppts"));
@@ -326,6 +328,7 @@ export class PowerFloCard extends HTMLElement {
       windowMs: this.config.runtime_window_minutes * 60_000, maxAgeMs: this.config.runtime_max_sample_age_seconds * 1000 };
     const runtime = this.runtimeEstimator.observe(input);
     const charge = this.chargeEstimator.observe(input);
+    this.updateForecastIcon("runtime", runtime.status);
     const states = { warming: "Collecting data", charging: "Charging", discharging: "Not charging", static: "Not discharging",
       unavailable: "Unavailable", reserve: "Reserve reached", target: "Target reached" };
     this.setText('[data-meta="battery-runtime"]', runtime.status === "ready" ? formatRuntime(runtime.hours) : runtime.status === "warming" ? "Collecting discharge data" : states[runtime.status]);
@@ -345,12 +348,14 @@ export class PowerFloCard extends HTMLElement {
       solarWatts: solar, gridImportWatts: gridImport, forecastSolarWatts: validForecast, solarHours: horizon,
       taperStart: this.config.charge_taper_start_soc, taperFloor: this.config.charge_taper_floor_ratio });
     const chargeResult = projection(this.config.battery_charge_target_soc);
+    this.updateForecastIcon("full", chargeResult.status, this.config.battery_charge_target_soc);
     const chargeText = result => result.status === "ready" ? formatRuntime(result.hours) : result.status === "solar-limited" ? "Needs more solar" :
       result.status === "warming" ? "Collecting charge data" : result.status === "static" ? "Not charging" : states[result.status];
     this.setText('[data-meta="battery-charge"]', chargeText(chargeResult));
     this.setText('[data-meta="charge-basis"]', chargeResult.status === "ready" ? "Solar + net charge + assumed taper" : `To ${this.config.battery_charge_target_soc}% SOC`);
     for (const target of [50, 75, 95]) {
       const result = projection(target);
+      this.updateForecastIcon(String(target), result.status, target);
       this.setText(`[data-target="${target}"]`, chargeText(result));
       this.setText(`[data-target-basis="${target}"]`, result.status === "target" ? "Reached at current SOC" : result.status === "ready" ? "Solar + charge rate + taper" : "Awaiting charging conditions");
     }
@@ -362,6 +367,19 @@ export class PowerFloCard extends HTMLElement {
     this.setText('[data-meta="confidence-detail"]', `${charge.status === "ready" ? chargeConfidence.detail : dischargeConfidence.detail}. Net charge already includes solar; source share and taper are modeled, not calibrated battery specifications.`);
     const ageSeconds = Number.isFinite(input.sampleTime) ? Math.max(0, Math.round((input.now - input.sampleTime) / 1000)) : null;
     this.setText(".sample-age", ageSeconds === null ? "" : `${ageSeconds}s`);
+  }
+
+  /**
+   * Updates one decorative estimate illustration from the same state as its text.
+   * @param {string} key Runtime, full, or numeric SOC column key.
+   * @param {string} status Estimate lifecycle state.
+   * @param {number|null} target Target SOC represented by the battery fill.
+   */
+  updateForecastIcon(key, status, target = null) {
+    const icon = this.shadowRoot.querySelector(`[data-forecast-icon="${key}"]`);
+    // The SVG factory emits only fixed paths and bounded numeric fill geometry, never entity text.
+    icon.dataset.status = status;
+    icon.innerHTML = forecastIcon(status, target);
   }
 
   /** Appends only fresh numeric live daily counters to the selected history. */
