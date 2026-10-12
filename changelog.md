@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Preserve the user-selected rendering as a fixed dated reference and document visual constraints and proposed aesthetic refinements without changing card behavior.
+
 - Replace square routes and moving dots with smooth rounded connectors and tangent-oriented directional chevrons.
 - Align bundled-art endpoints to measured visible alpha bounds while retaining conservative bounds for uploaded images.
 - Remove duplicated header/forecast framing; give forecast text full-width rows and larger top-corner state illustrations, with full-width narrow-layout estimates.
