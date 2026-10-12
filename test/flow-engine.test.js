@@ -17,6 +17,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
@@ -55,6 +56,13 @@ describe("FlowAnimator", () => {
     animator.tick(500);
     expect(particles[0].style.transform).toBe("translate3d(50px, 25px, 0) rotate(0deg)");
     expect(particles[0].style.opacity).toBe("1");
+  });
+  it("preserves the chevron phase when telemetry changes its speed", () => {
+    const { animator } = fixture();
+    animator.direction = "forward"; animator.startedAt = 0; animator.duration = 1000;
+    vi.spyOn(performance, "now").mockReturnValue(750);
+    animator.setFlow("forward",500);
+    expect((750 - animator.startedAt) / animator.duration).toBeCloseTo(0.75);
   });
 
   it("reverses point progression", () => {

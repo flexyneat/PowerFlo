@@ -44,10 +44,11 @@ export function statisticsSeries(rawRows, range) {
     if (row.start < range.start.getTime() || row.end > expectedEnd || seen.has(row.start)) continue;
     seen.add(row.start);
     if (!Number.isFinite(row.change) || row.change < 0) { partial = true; continue; }
-    if (row.start !== previousEnd) partial = true;
+    const gap = row.start !== previousEnd;
+    if (gap) partial = true;
     if (!points.length) points.push({ time: row.start, value: 0 });
     total += row.change;
-    points.push({ time: row.end, value: total });
+    points.push({ time: row.end, value: total, ...(gap && points.length > 1 ? { breakBefore: true } : {}) });
     previousEnd = row.end;
   }
   if (previousEnd < expectedEnd) partial = true;

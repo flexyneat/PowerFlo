@@ -2,22 +2,32 @@
 
 /** @returns {string} Three-column solar array with panel and mounting detail. */
 export function solarIcon() {
-  return `<svg viewBox="0 0 120 120" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"><path d="M24 16h24L31 96H7zM56 16h24L63 96H39zM88 16h24L95 96H71z"/><path d="M18 42h24M13 69h24M50 42h24M45 69h24M82 42h24M77 69h24M47 100h24M59 97v17"/></g></svg>`;
+  return topologyIcon('M14 10h13L17 51H4ZM31 10h13L34 51H21ZM48 10h13L51 51H38Z', 'M14 10h13L17 51H4ZM31 10h13L34 51H21ZM48 10h13L51 51H38ZM11 24h13M7 38h13M28 24h13M24 38h13M45 24h13M41 38h13M24 55h16M32 55v6');
 }
 
 /** @returns {string} Transmission tower with lattice and insulator detail. */
 export function gridIcon() {
-  return `<svg viewBox="0 0 120 140" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M60 9 25 128M60 9l35 119M17 128h86M49 21h22M43 43h34M37 66h46M31 92h58M46 31 26 44h68L74 31M41 54 14 69h92L79 54M26 44v11M94 44v11M14 69v11M106 69v11M43 44l34 22M77 44 43 66M37 66l46 26M83 66 37 92M31 92l58 36M89 92l-58 36"/></g></svg>`;
+  return topologyIcon('M32 5 17 58h30Z', 'M32 5 17 58M32 5l15 53M12 58h40M27 13h10M25 23h14M22 35h20M19 47h26M26 18 14 24h36L38 18M23 29 7 36h50L41 29M14 24v6M50 24v6M7 36v6M57 36v6M25 23l17 12M39 23 22 35M22 35l23 12M42 35 19 47M19 47l28 11M45 47 17 58');
 }
 
 /** @returns {string} Protected home with a separately colored shield. */
 export function loadIcon() {
-  return `<svg viewBox="0 0 120 120" aria-hidden="true"><g fill="none" stroke="var(--pf-text)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="m8 57 48-43 40 35M17 51v55h59M43 106V75h24v31M75 28V12h14v28"/></g><path d="M92 53c9 7 18 8 23 9v21c0 16-8 28-23 34-15-6-23-18-23-34V62c5-1 14-2 23-9Z" fill="none" stroke="var(--pf-load)" stroke-width="3.2" stroke-linejoin="round"/></svg>`;
+  return topologyIcon('M12 29 29 13l18 16v26H12ZM49 29l12 6v12c0 8-5 12-12 15-7-3-12-7-12-15V35Z', 'M5 32 29 10l24 22M12 26v29h26M23 55V39h12v16M39 18V8h8v17M49 29l12 6v12c0 8-5 12-12 15-7-3-12-7-12-15V35ZM44 44l4 4 7-9');
 }
 
 /** @returns {string} Three-module battery cabinet with status LEDs and translucent cell windows. */
 export function batteryBankIcon() {
-  return `<svg viewBox="0 0 110 140" aria-hidden="true"><g fill="none" stroke="var(--pf-text-muted)" stroke-width="2.5" stroke-linejoin="round"><path d="M10 10h88v120H10zM17 10V5h75v5M10 49h88M10 89h88M7 131h94v5H7z"/><path d="M16 20v18M16 60v18M16 100v18M23 25h48v17H23zM23 65h48v17H23zM23 105h48v17H23z"/></g><g fill="currentColor" fill-opacity=".65"><rect x="25" y="27" width="44" height="13" rx="2"/><rect x="25" y="67" width="44" height="13" rx="2"/><rect x="25" y="107" width="44" height="13" rx="2"/></g><g stroke="var(--pf-live)" stroke-width="2"><path d="M81 26h8M81 66h8M81 106h8"/></g></svg>`;
+  return topologyIcon('M19 15h20v8H19ZM19 30h20v8H19ZM19 45h20v8H19Z', 'M12 8h40v51H12ZM16 8V4h32v4M12 25h40M12 41h40M9 59h46v3H9ZM19 15h20v8H19ZM19 30h20v8H19ZM19 45h20v8H19ZM44 17h4M44 32h4M44 47h4');
+}
+
+/**
+ * Applies the shared optical frame and token-driven two-tone treatment to all topology icons.
+ * @param {string} tone Trusted SVG fill geometry.
+ * @param {string} lines Trusted SVG outline geometry.
+ * @returns {string} Local decorative vector markup.
+ */
+function topologyIcon(tone, lines) {
+  return `<svg viewBox="0 0 64 64" aria-hidden="true"><path class="icon-tone" d="${tone}"/><path class="icon-lines" d="${lines}"/></svg>`;
 }
 
 /**

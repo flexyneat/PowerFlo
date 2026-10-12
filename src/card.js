@@ -1,14 +1,15 @@
 /** @fileoverview PowerFlo's read-only live topology, battery forecasts, and period history. */
 import { normalizeConfig, validateConfig } from "./config.js";
 import { FlowAnimator } from "./flow-engine.js";
-import { appendHistoryPoint, downsample, sparklinePath } from "./history.js";
+import { appendHistoryPoint } from "./history.js";
 import { batteryBankIcon, forecastIcon, gridIcon, loadIcon, solarIcon } from "./icons.js";
 import { loadPeriodHistory, periodEnergy, periodRange } from "./period-history.js";
 import { deriveModel, numericState } from "./state-model.js";
 import { BatteryChargeEstimator, BatteryRuntimeEstimator, formatRuntime } from "./runtime.js";
 import { cardStyles } from "./styles.js";
 import { connectorPath } from "./connector-geometry.js";
-import { DEFAULT_ART_BOUNDS } from "./tokens.js";
+import { DEFAULT_ART_BOUNDS, READING_MOTION, CHART_GEOMETRY } from "./tokens.js";
+import { readingParts, chartCoordinates, chartPaths } from "./presentation.js";
 import { estimateConfidence, projectCharge } from "./charge-model.js";
 import { nearestObservation } from "./chart-inspection.js";
 import { loadEnergyStatistics } from "./statistics.js";
@@ -64,6 +65,10 @@ export class PowerFloCard extends HTMLElement {
     this.statisticsHistory = new Map();
     this.chartSeries = new Map();
     this.cursorRatio = null;
+    this.cursorPinned = false;
+    this.textAnimations = new Map();
+    this.lastReadingFeedback = new WeakMap();
+    this.inspectionPointer = null;
     this.historyState = { status: "idle" };
     this.historyRequest = 0;
     this.lastDayCheck = 0;
@@ -125,11 +130,11 @@ export class PowerFloCard extends HTMLElement {
       this.updateAnimationVisibility();
     });
     this.visibilityObserver.observe(this);
-    this.layoutObserver = new ResizeObserver(() => this.updateConnectorGeometry());
+    this.layoutObserver = new ResizeObserver(() => { this.updateConnectorGeometry(); this.updateInspection(); });
     this.layoutObserver.observe(this.shadowRoot.querySelector(".topology"));
     this.updateConnectorGeometry();
     this.visibilityHandler = () => this.updateAnimationVisibility();
-    this.motionHandler = event => { for (const animator of this.animators.values()) animator.setReducedMotion(event.matches); };
+    this.motionHandler = event => { for (const animator of this.animators.values()) animator.setReducedMotion(event.matches); if (event.matches) this.cancelTextAnimations(); };
     document.addEventListener("visibilitychange", this.visibilityHandler);
     this.reducedMotion.addEventListener("change", this.motionHandler);
     this.queueUpdate();
@@ -152,11 +157,14 @@ export class PowerFloCard extends HTMLElement {
     this.reducedMotion.removeEventListener("change", this.motionHandler);
     for (const animator of this.animators.values()) animator.destroy();
     this.animators.clear();
+    this.cancelTextAnimations();
   }
 
   /** Updates animation visibility independently of telemetry. */
   updateAnimationVisibility() {
-    for (const animator of this.animators.values()) animator.setVisible(this.visible && !document.hidden);
+    const wireVisible = getComputedStyle(this.shadowRoot.querySelector(".connectors")).display !== "none";
+    for (const animator of this.animators.values()) animator.setVisible(this.visible && !document.hidden && wireVisible);
+    if (!this.visible || document.hidden) this.cancelTextAnimations();
   }
 
   /** Anchors connector endpoints to actual panel edges so flows never cross inverter text. */
@@ -173,6 +181,7 @@ export class PowerFloCard extends HTMLElement {
       const node = this.shadowRoot.querySelector(`.node.${name}`).getBoundingClientRect();
       this.shadowRoot.querySelector(`[data-flow-path="${name}"]`).setAttribute("d", connectorPath(canvas, inverter, node, name));
     }
+    this.updateAnimationVisibility();
   }
 
   /** @returns {number} Default masonry rows. */
@@ -228,20 +237,55 @@ export class PowerFloCard extends HTMLElement {
       icon.setAttribute("aria-hidden", "true");
       item.append(icon, content);
     }
-    for (const button of this.shadowRoot.querySelectorAll("[data-period]")) button.addEventListener("click", () => this.selectPeriod(button.dataset.period));
+    const estimates = [...this.shadowRoot.querySelectorAll(".forecast-item")];
+    const runtime = document.createElement("div"); runtime.className = "runtime-outlook";
+    runtime.append(estimates[0]);
+    const rail = document.createElement("div"); rail.className = "milestone-rail";
+    rail.setAttribute("role", "list"); rail.setAttribute("aria-label", "Charge milestones");
+    for (const item of estimates.slice(1)) { item.setAttribute("role", "listitem"); rail.append(item); }
+    this.shadowRoot.querySelector(".forecast-strip").replaceChildren(runtime, rail);
+    for (const button of this.shadowRoot.querySelectorAll("[data-period]")) {
+      button.addEventListener("click", () => this.selectPeriod(button.dataset.period));
+      button.addEventListener("pointerdown", () => button.classList.add("pointer-active"));
+      for (const event of ["pointerup", "pointercancel", "pointerleave"]) button.addEventListener(event, () => button.classList.remove("pointer-active"));
+    }
+    for (const name of SUMMARY_NAMES) {
+      const svg = this.shadowRoot.querySelector(`.summary[data-domain="${name}"] .spark`);
+      const point = document.createElementNS("http://www.w3.org/2000/svg", "ellipse");
+      point.classList.add("chart-point"); point.dataset.chartPoint = name;
+      point.setAttribute("visibility", "hidden"); svg.append(point);
+      const tooltip = this.shadowRoot.querySelector(`[data-inspection="${name}"]`);
+      tooltip.setAttribute("role", "tooltip"); tooltip.id = `point-tooltip-${name}`;
+    }
     // Channel readings use the full solar panel width rather than crowding the power column.
     this.shadowRoot.querySelector(".solar").append(this.shadowRoot.querySelector(".mppts"));
     this.shadowRoot.querySelector(".retry").addEventListener("click", () => this.loadHistoryIfNeeded(true));
     const slider = this.shadowRoot.querySelector("#history-cursor");
-    slider.addEventListener("input", () => { this.cursorRatio = Number(slider.value) / 1000; this.updateInspection(); });
+    slider.setAttribute("aria-describedby", "inspection-time");
+    this.shadowRoot.querySelector(".inspection-time").id = "inspection-time";
+    slider.addEventListener("input", () => { this.cursorPinned = true; this.cursorRatio = Number(slider.value) / 1000; this.updateInspection(); });
+    slider.addEventListener("keydown", event => { if (event.key === "Escape") this.clearInspection(); });
     for (const chart of this.shadowRoot.querySelectorAll(".spark")) {
       chart.addEventListener("pointermove", event => {
+        if (this.inspectionPointer !== null && event.pointerId !== this.inspectionPointer) return;
         const rect = chart.getBoundingClientRect();
+        if (!rect.width || !Number.isFinite(event.clientX)) return;
         this.cursorRatio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
         slider.value = String(Math.round(this.cursorRatio * 1000));
         this.updateInspection();
       });
-      chart.addEventListener("pointerdown", event => { chart.setPointerCapture?.(event.pointerId); });
+      chart.addEventListener("pointerdown", event => {
+        if (event.isPrimary === false || this.inspectionPointer !== null) return;
+        const rect = chart.getBoundingClientRect();
+        if (!rect.width || !Number.isFinite(event.clientX)) return;
+        this.inspectionPointer = event.pointerId; this.cursorPinned = true;
+        this.cursorRatio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+        slider.value = String(Math.round(this.cursorRatio * 1000)); this.updateInspection();
+        chart.setPointerCapture?.(event.pointerId);
+      });
+      chart.addEventListener("pointerup", event => { if (event.pointerId === this.inspectionPointer) this.inspectionPointer = null; });
+      chart.addEventListener("pointercancel", () => this.clearInspection());
+      chart.addEventListener("pointerleave", () => { if (!this.cursorPinned) this.clearInspection(); });
     }
     this.rendered = true;
     this.createAnimators();
@@ -277,6 +321,15 @@ export class PowerFloCard extends HTMLElement {
     this.setText(".inverter-capacity", `${this.config.inverter_capacity_kw} kW`);
     this.setText('[data-meta="battery-capacity"]', `${this.config.battery_capacity_kwh.toFixed(2)} kWh total capacity`);
     this.setText('[data-meta="charge-label"]', this.config.battery_charge_target_soc === 100 ? "Time to full" : `Time to ${this.config.battery_charge_target_soc}%`);
+    const rail = this.shadowRoot.querySelector(".milestone-rail");
+    for (const key of ["50", "75", "95", "full"]) {
+      const item = this.shadowRoot.querySelector(`[data-forecast-icon="${key}"]`).parentElement;
+      item.dataset.chargeTarget = key === "full" ? String(this.config.battery_charge_target_soc) : key;
+      item.hidden = key !== "full" && Number(key) === this.config.battery_charge_target_soc;
+    }
+    const ordered = [...rail.children].sort((a, b) => Number(a.dataset.chargeTarget) - Number(b.dataset.chargeTarget));
+    rail.append(...ordered);
+    rail.style.setProperty("--pf-milestone-count", String(ordered.filter(item => !item.hidden).length));
     const visual = this.shadowRoot.querySelector(".inverter-visual");
     visual.replaceChildren();
     if (this.config.inverter_image) {
@@ -311,6 +364,7 @@ export class PowerFloCard extends HTMLElement {
     this.latestModel = model;
     this.polarity = model.polarity;
     this.dataset.state = model.dataState;
+    if (model.dataState !== "fresh") this.cancelTextAnimations();
     this.dataset.operatingNormal = String(["normal", "running"].includes(model.inverterStatus));
     this.setText(".status", `${label(model.inverterStatus)} · ${model.connected === null ? "Grid unavailable" : model.connected ? "On-grid" : "Off-grid"}`);
     this.setText(".freshness", model.dataState === "fresh" ? "LIVE" : label(model.dataState));
@@ -318,13 +372,11 @@ export class PowerFloCard extends HTMLElement {
     this.setText(".inverter-state", label(model.inverterStatus));
     const powers = { solar: model.values.solarPower, grid: model.values.gridPower, battery: model.values.batteryPower, load: model.values.loadPower };
     for (const name of FLOW_NAMES) {
-      this.setText(`[data-value="${name}"]`, formatPower(powers[name]));
+      this.setReading(`[data-value="${name}"]`, powers[name] === null ? null : Math.abs(powers[name]) / 1000, "kW", 2);
       this.applyFlow(name, model.flows[name], powers[name], model.dataState === "fresh");
     }
-    for (const index of [1, 2, 3]) this.setText(`[data-value="pv${index}"]`, formatPower(model.values[`pv${index}Power`]));
-    this.setText('[data-value="soc"]', formatValue(model.values.batterySoc, "%", 0));
-    const soc = model.values.batterySoc;
-    this.shadowRoot.querySelector(".soc-fill")?.setAttribute("stroke-dasharray", `${soc === null ? 0 : Math.max(0, Math.min(100, soc))} 100`);
+    for (const index of [1, 2, 3]) this.setReading(`[data-value="pv${index}"]`, model.values[`pv${index}Power`] === null ? null : Math.abs(model.values[`pv${index}Power`]) / 1000, "kW", 2);
+    this.setReading('[data-value="soc"]', model.values.batterySoc, "%", 0);
     this.setText('[data-meta="battery"]', `${label(model.battery)} · ${formatValue(model.values.batteryVoltage, "V")} · ${formatValue(model.values.batteryTemperature, "°C")}`);
     this.setText('[data-meta="grid"]', `${label(model.grid)} · ${formatValue(model.values.gridVoltage, "V")} · ${formatValue(model.values.gridFrequency, "Hz")}`);
     this.updateRuntime(model);
@@ -373,7 +425,7 @@ export class PowerFloCard extends HTMLElement {
     for (const target of [50, 75, 95]) {
       const result = projection(target);
       this.updateForecastIcon(String(target), result.status, target);
-      this.setText(`[data-target="${target}"]`, chargeText(result));
+      this.setText(`[data-target="${target}"]`, result.status === "target" ? "Reached" : chargeText(result));
       this.setText(`[data-target-basis="${target}"]`, result.status === "target" ? "Reached at current SOC" : result.status === "ready" ? "Solar + charge rate + taper" : "Awaiting charging conditions");
     }
     const dischargeConfidence = estimateConfidence(runtime, input.windowMs);
@@ -396,6 +448,7 @@ export class PowerFloCard extends HTMLElement {
     const icon = this.shadowRoot.querySelector(`[data-forecast-icon="${key}"]`);
     // The SVG factory emits only fixed paths and bounded numeric fill geometry, never entity text.
     icon.dataset.status = status;
+    icon.parentElement.dataset.status = status;
     icon.innerHTML = forecastIcon(status, target);
   }
 
@@ -452,6 +505,7 @@ export class PowerFloCard extends HTMLElement {
     if (!PERIODS.includes(period) || period === this.period) return;
     this.period = period;
     this.cursorRatio = null;
+    this.cursorPinned = false;
     for (const button of this.shadowRoot.querySelectorAll("[data-period]")) button.setAttribute("aria-pressed", String(button.dataset.period === period));
     this.loadHistoryIfNeeded();
   }
@@ -501,7 +555,7 @@ export class PowerFloCard extends HTMLElement {
     if (!this.rendered) return;
     const timeZone = this.hassValue?.config?.time_zone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
     const range = periodRange(this.period, new Date(), timeZone);
-    const startLabel = this.period === "today" ? "12 AM" : new Intl.DateTimeFormat(undefined, { timeZone, month: "short", day: "numeric" }).format(range.start);
+    const startLabel = this.period === "today" ? this.config.clock_format === "24" ? "00:00" : "12 AM" : new Intl.DateTimeFormat(undefined, { timeZone, month: "short", day: "numeric" }).format(range.start);
     this.setText(".history-caption", this.period === "today" ? "Today · midnight to now" : this.period === "week" ? "Last 7 local days · long-term statistics" : "This month · long-term statistics");
     const loading = this.historyState.status === "loading";
     const failed = this.historyState.status === "error";
@@ -520,17 +574,14 @@ export class PowerFloCard extends HTMLElement {
       const todayStart = periodRange("today", range.end, timeZone).start.getTime();
       const live = sampleTime >= todayStart && sampleTime <= range.end.getTime() ? this.latestModel?.values[`${name}Today`] ?? null : null;
       const total = this.period === "today" ? live ?? result.total : result.total;
-      this.setText(`[data-summary-value="${name}"]`, formatValue(total, "kWh"));
+      this.setReading(`[data-summary-value="${name}"]`, total, "kWh", 1, false);
       this.setText(`[data-coverage="${name}"]`, !(this.period === "today" ? id : statisticId) ? "Map an energy entity" : loading ? "Loading history" : failed ? "History unavailable" :
         result.total === null ? this.period === "today" ? "No recorded samples" : result.status === "missing" ? "Energy statistics not configured" : "No completed statistics" :
         this.period === "today" ? "Daily energy" : `${result.partial ? "Partial · " : ""}Statistics through ${new Intl.DateTimeFormat(undefined,{timeZone,hour:"numeric",minute:"2-digit",hour12:this.config.clock_format!=="24"}).format(new Date(result.end))}`);
       this.chartSeries.set(name, result.points);
-      const line = sparklinePath(downsample(result.points, 100), 100, 36, range);
-      this.shadowRoot.querySelector(`[data-summary-path="${name}"]`).setAttribute("d", line);
-      const duration = Math.max(1, range.end.getTime() - range.start.getTime());
-      const firstX = ((result.points[0]?.time ?? range.start.getTime()) - range.start.getTime()) / duration * 100;
-      const lastX = ((result.points.at(-1)?.time ?? range.end.getTime()) - range.start.getTime()) / duration * 100;
-      this.shadowRoot.querySelector(`[data-summary-area="${name}"]`).setAttribute("d", line ? `${line} L${lastX} 36 L${firstX} 36 Z` : "");
+      const paths = chartPaths(result.points, range);
+      this.shadowRoot.querySelector(`[data-summary-path="${name}"]`).setAttribute("d", paths.line);
+      this.shadowRoot.querySelector(`[data-summary-area="${name}"]`).setAttribute("d", paths.area);
       const summary = this.shadowRoot.querySelector(`.summary[data-domain="${name}"]`);
       summary.querySelector("[data-period-start]").textContent = startLabel;
       summary.setAttribute("aria-label", `${label(name)}, ${label(this.period)}: ${formatValue(total, "kWh")}. ${result.partial ? "Partial recorded history." : "Recorded history."}`);
@@ -541,9 +592,11 @@ export class PowerFloCard extends HTMLElement {
   /** Shows nearest actual observations for a shared hover/touch/keyboard time cursor. */
   updateInspection() {
     if (this.cursorRatio === null || !this.hassValue) {
+      this.shadowRoot.querySelector("#history-cursor").setAttribute("aria-valuetext", "No recorded time selected");
       this.setText(".inspection-time", "Move over a graph or use the time slider");
       for (const name of SUMMARY_NAMES) {
         this.shadowRoot.querySelector(`[data-cursor="${name}"]`).setAttribute("visibility", "hidden");
+        this.shadowRoot.querySelector(`[data-chart-point="${name}"]`).setAttribute("visibility", "hidden");
         this.setText(`[data-inspection="${name}"]`, "");
       }
       return;
@@ -556,13 +609,20 @@ export class PowerFloCard extends HTMLElement {
     this.shadowRoot.querySelector("#history-cursor").setAttribute("aria-valuetext", formatter.format(new Date(time)));
     for (const name of SUMMARY_NAMES) {
       const point = nearestObservation(this.chartSeries.get(name) ?? [], time);
+      const marker = this.shadowRoot.querySelector(`[data-chart-point="${name}"]`);
       const cursor = this.shadowRoot.querySelector(`[data-cursor="${name}"]`);
       cursor.setAttribute("visibility", point ? "visible" : "hidden");
       cursor.removeAttribute("hidden");
+      marker.setAttribute("visibility", point ? "visible" : "hidden");
       if (!point) { this.setText(`[data-inspection="${name}"]`, "No sample"); continue; }
       const x = (point.time - range.start.getTime()) / Math.max(1, range.end.getTime() - range.start.getTime()) * 100;
       cursor.setAttribute("x1", String(x)); cursor.setAttribute("x2", String(x));
-      this.setText(`[data-inspection="${name}"]`, `${formatValue(point.value,"kWh",2)} · ${formatter.format(new Date(point.time))}`);
+      const coordinates = chartCoordinates(point, this.chartSeries.get(name), range);
+      marker.setAttribute("cx", String(coordinates.x)); marker.setAttribute("cy", String(coordinates.y));
+      const rect = marker.parentElement.getBoundingClientRect();
+      marker.setAttribute("rx", String(rect.width ? CHART_GEOMETRY.pointRadius * CHART_GEOMETRY.width / rect.width : 1));
+      marker.setAttribute("ry", String(rect.height ? CHART_GEOMETRY.pointRadius * CHART_GEOMETRY.height / rect.height : 1));
+      this.setText(`[data-inspection="${name}"]`, `${formatValue(point.value,"kWh",2)}\n${formatter.format(new Date(point.time))}`);
     }
   }
 
@@ -573,6 +633,53 @@ export class PowerFloCard extends HTMLElement {
    */
   setText(selector, value) {
     const element = this.shadowRoot.querySelector(selector);
-    if (element && element.textContent !== value) element.textContent = value;
+    if (element && element.textContent !== value) {
+      const previous = element.textContent; element.textContent = value;
+      if (element.matches(".forecast-value,.inverter-state,.status")) this.animateReading(element, previous);
+    }
   }
+
+  /** Clears pinned/hover inspection without changing the selected history period. */
+  clearInspection() { this.cursorRatio = null; this.cursorPinned = false; this.inspectionPointer = null; this.updateInspection(); }
+
+  /**
+   * Commits real values first, using safe text nodes and smaller typographic unit suffixes.
+   * @param {string} selector Reading destination.
+   * @param {number|null} value Actual value.
+   * @param {string} unit Display unit.
+   * @param {number} digits Decimal precision.
+   * @param {boolean} animate Allow restrained opacity feedback (never used for keyboard charts).
+   */
+  setReading(selector, value, unit, digits = 1, animate = true) {
+    const element = this.shadowRoot.querySelector(selector);
+    const parts = readingParts(value, unit, digits);
+    const text = parts.number + (parts.unit ? ` ${parts.unit}` : "");
+    if (element.textContent === text && element.querySelector(".reading-number")) return;
+    const previous = element.textContent;
+    const number = document.createElement("span"); number.className = "reading-number"; number.textContent = parts.number;
+    const suffix = document.createElement("span"); suffix.className = "reading-unit"; suffix.textContent = parts.unit;
+    element.replaceChildren(number, ...(parts.unit ? [document.createTextNode(" "), suffix] : []));
+    if (animate) this.animateReading(element, previous);
+  }
+
+  /**
+   * Gives changed readings opacity feedback without delaying, counting, or hiding real data.
+   * @param {HTMLElement} element Destination already containing the current reading.
+   * @param {string} previous Prior visible text, used to skip the initial render.
+   */
+  animateReading(element, previous) {
+    if (!previous || previous === "—" || this.dataset.state !== "fresh" || this.reducedMotion.matches || !this.visible || document.hidden || !element.animate) return;
+    const before = Number.parseFloat(previous); const after = Number.parseFloat(element.textContent);
+    if (Number.isFinite(before) && Number.isFinite(after) && Math.abs(after - before) / Math.max(1, Math.abs(before)) < READING_MOTION.relativeThreshold) return;
+    const now = Date.now();
+    if (now - (this.lastReadingFeedback.get(element) ?? -Infinity) < READING_MOTION.cooldownMs) return;
+    this.lastReadingFeedback.set(element, now);
+    this.textAnimations.get(element)?.cancel();
+    const animation = element.animate([{ opacity: READING_MOTION.opacity }, { opacity: 1 }], { duration: READING_MOTION.duration, easing: READING_MOTION.easing });
+    this.textAnimations.set(element, animation);
+    animation.onfinish = () => { if (this.textAnimations.get(element) === animation) this.textAnimations.delete(element); };
+  }
+
+  /** Stops feedback immediately on detach, hidden views, or reduced-motion preference changes. */
+  cancelTextAnimations() { for (const animation of this.textAnimations.values()) animation.cancel(); this.textAnimations.clear(); }
 }

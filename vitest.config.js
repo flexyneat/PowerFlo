@@ -12,7 +12,7 @@ const config = defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "json-summary"],
-      include: ["src/config.js", "src/state-model.js", "src/flow-engine.js", "src/history.js", "src/runtime.js", "src/period-history.js", "src/charge-model.js", "src/statistics.js", "src/chart-inspection.js", "src/connector-geometry.js", "src/icons.js"],
+      include: ["src/config.js", "src/state-model.js", "src/flow-engine.js", "src/history.js", "src/runtime.js", "src/period-history.js", "src/charge-model.js", "src/statistics.js", "src/chart-inspection.js", "src/connector-geometry.js", "src/icons.js", "src/presentation.js"],
       thresholds: {
         lines: 80,
         functions: 80,

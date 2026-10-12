@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Implement all six approved refinements: typography, unified icons, aligned composition, runtime/milestone rail, actual-observation chart inspection and restrained motion.
+- Split statistics paths across missing intervals; preserve flow phase on rate changes; cancel stale text animations; support first-touch inspection and sorted/deduplicated SOC goals.
+- Verify 84 tests, lint, coverage and build, transparent light/dark and responsive fixtures; document the approved 4× CPU/Fast 4G local repeat-load trace (181 ms LCP, 0.00 CLS; INP unavailable).
+
 - Preserve the user-selected rendering as a fixed dated reference and document visual constraints and proposed aesthetic refinements without changing card behavior.
 
 - Replace square routes and moving dots with smooth rounded connectors and tangent-oriented directional chevrons.

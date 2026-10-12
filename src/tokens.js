@@ -17,14 +17,28 @@ export const TOKENS = Object.freeze({
   textMuted: "var(--secondary-text-color, CanvasText)",
   border: "var(--divider-color, currentColor)",
   borderStrong: "var(--ha-card-border-color, var(--divider-color, currentColor))",
-  solar: "oklch(0.82 0.17 82)",
-  grid: "oklch(0.73 0.16 235)",
-  battery: "oklch(0.72 0.17 305)",
-  load: "oklch(0.78 0.18 150)",
-  live: "oklch(0.79 0.2 148)",
-  warning: "oklch(0.8 0.17 70)",
-  fault: "oklch(0.67 0.22 28)",
-  focus: "oklch(0.8 0.15 235)",
+  borderSoft: "color-mix(in srgb, var(--pf-text) 16%, transparent)",
+  summaryUnitRatio: "0.55em",
+  runtimeWidth: "13rem",
+  inspectionWidth: "20rem",
+  cursorDash: "2 2",
+  solarBase: "oklch(0.82 0.17 82)",
+  gridBase: "oklch(0.73 0.16 235)",
+  batteryBase: "oklch(0.72 0.17 305)",
+  loadBase: "oklch(0.78 0.18 150)",
+  // Blend toward the theme foreground so the same domain hues work on light and dark canvases.
+  solar: "var(--powerflo-solar-color, color-mix(in srgb, var(--pf-solar-base) 64%, var(--pf-text)))",
+  grid: "var(--powerflo-grid-color, color-mix(in srgb, var(--pf-grid-base) 64%, var(--pf-text)))",
+  battery: "var(--powerflo-battery-color, color-mix(in srgb, var(--pf-battery-base) 64%, var(--pf-text)))",
+  load: "var(--powerflo-load-color, color-mix(in srgb, var(--pf-load-base) 64%, var(--pf-text)))",
+  liveBase: "oklch(0.79 0.2 148)",
+  warningBase: "oklch(0.8 0.17 70)",
+  faultBase: "oklch(0.67 0.22 28)",
+  focusBase: "oklch(0.8 0.15 235)",
+  live: "color-mix(in srgb, var(--pf-live-base) 64%, var(--pf-text))",
+  warning: "color-mix(in srgb, var(--pf-warning-base) 64%, var(--pf-text))",
+  fault: "color-mix(in srgb, var(--pf-fault-base) 64%, var(--pf-text))",
+  focus: "color-mix(in srgb, var(--pf-focus-base) 64%, var(--pf-text))",
   space1: "0.25rem",
   space2: "0.5rem",
   space3: "0.75rem",
@@ -38,7 +52,14 @@ export const TOKENS = Object.freeze({
   iconSm: "1.25rem",
   iconMd: "2rem",
   forecastIconSize: "2.5rem",
-  iconLg: "7rem",
+  iconLg: "5.5rem",
+  iconStroke: "1.75",
+  iconToneOpacity: "0.12",
+  unitRatio: "0.44em",
+  pressScale: "0.98",
+  tooltipSurface: "var(--card-background-color, Canvas)",
+  tooltipWidth: "12rem",
+  markerSize: "3",
   touch: "2.75rem",
   cardMinHeight: "34rem",
   labelSize: "0.75rem",
@@ -57,7 +78,7 @@ export const TOKENS = Object.freeze({
   chartPanelHeight: "11rem",
   chartLineWidth: "1.75",
   chartFillOpacity: "0.09",
-  flowOpacity: "0.8",
+  flowOpacity: "1",
   stoppedOpacity: "0.25",
   headingTracking: "-0.025em",
   microTracking: "0.06em",
@@ -68,7 +89,7 @@ export const TOKENS = Object.freeze({
   lineHeightBody: "1.4",
   inverterWidth: "12rem",
   artWidth: "22rem",
-  topologyHeight: "30rem",
+  topologyHeight: "28rem",
   socSize: "5.5rem",
   socStrokeWidth: "5",
   forecastSize: "clamp(1.15rem, 1.65cqi, 1.65rem)",
@@ -92,6 +113,12 @@ export const FLOW_GEOMETRY = Object.freeze({ width: 1000, height: 600, arrowClea
 
 /** Measured nontransparent bounds of the bundled PNG; uploaded art uses its full box. */
 export const DEFAULT_ART_BOUNDS = Object.freeze({ left: 144 / 1145, top: 140 / 1374, right: 1002 / 1145, bottom: 1251 / 1374 });
+
+/** Abstract chart canvas and physical point-marker radius, shared by paths and inspection. */
+export const CHART_GEOMETRY = Object.freeze({ width: 100, height: 36, padding: 2, pointRadius: 3 });
+
+/** Opacity-only feedback applied after actual readings are already committed to the DOM. */
+export const READING_MOTION = Object.freeze({ duration: 160, easing: "cubic-bezier(0.22, 1, 0.36, 1)", opacity: 0.88, cooldownMs: 30_000, relativeThreshold: 0.1 });
 
 /**
  * Converts tokens into CSS custom properties scoped to the card.

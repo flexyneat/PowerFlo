@@ -72,6 +72,71 @@ describe("battery panel runtime", () => {
 });
 
 describe("visible flow arrows and forecast illustrations", () => {
+  it("separates runtime from four charge milestones and exposes compact recorded-point tooltips", () => {
+    const card = fixture(); card.updateModel();
+    const root = card.shadowRoot;
+    expect(root.querySelector('.runtime-outlook [data-meta="battery-runtime"]')).not.toBeNull();
+    expect(root.querySelectorAll(".milestone-rail .forecast-item")).toHaveLength(4);
+    expect(root.querySelectorAll(".summary [data-chart-point]")).toHaveLength(4);
+    expect(root.querySelectorAll(".summary .node-icon, .summary .forecast-icon")).toHaveLength(0);
+    expect(root.querySelector('[data-value="battery"] .reading-unit').textContent).toBe("kW");
+    expect(root.querySelector('[data-value="soc"] .reading-unit').textContent).toBe("%");
+    root.querySelector("#history-cursor").dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    expect(card.cursorRatio).toBe(null);
+  });
+  it("orders configured goals truthfully and removes duplicate checkpoints", () => {
+    const card = fixture({ battery_charge_target_soc: 80 });
+    const rail = card.shadowRoot.querySelector(".milestone-rail");
+    expect([...rail.children].map(e => Number(e.dataset.chargeTarget))).toEqual([50,75,80,95]);
+    card.setConfig({ ...card.config, battery_charge_target_soc: 95 });
+    expect([...rail.children].filter(e => !e.hidden).map(e => Number(e.dataset.chargeTarget))).toEqual([50,75,95]);
+  });
+  it("selects an actual point on the first touch and ignores a second touch", () => {
+    const card = fixture(); card.updateModel();
+    const root = card.shadowRoot; const chart = root.querySelector(".spark");
+    chart.getBoundingClientRect = () => ({ left:0,width:100,height:36 });
+    card.chartSeries.set("solar", [{ time: Date.now()-1000, value:1.25 }, { time:Date.now(),value:2.5 }]);
+    chart.dispatchEvent(new PointerEvent("pointerdown", { clientX:50,pointerId:7,isPrimary:true,pointerType:"touch" }));
+    expect(card.cursorRatio).toBe(0.5);
+    expect(root.querySelector('[data-chart-point="solar"]').getAttribute("visibility")).toBe("visible");
+    expect(root.querySelector('[data-inspection="solar"]').textContent).toContain("1.25 kWh");
+    chart.dispatchEvent(new PointerEvent("pointerdown", { clientX:90,pointerId:8,isPrimary:false,pointerType:"touch" }));
+    expect(card.cursorRatio).toBe(0.5);
+    chart.dispatchEvent(new PointerEvent("pointercancel", { pointerId:7 }));
+    expect(card.cursorRatio).toBe(null);
+  });
+  it("ignores a zero-width chart safely and keeps editable labels as plain text", () => {
+    const card = fixture({title:'<img src=x onerror=alert(1)>'}); card.updateModel();
+    const root = card.shadowRoot; const chart = root.querySelector(".spark");
+    chart.getBoundingClientRect = () => ({left:0,width:0,height:0});
+    chart.dispatchEvent(new PointerEvent("pointerdown",{clientX:0,pointerId:1,isPrimary:true}));
+    expect(card.cursorRatio).toBe(null);
+    expect(root.querySelector(".title img")).toBe(null);
+    expect(root.querySelector(".title").textContent).toBe('<img src=x onerror=alert(1)>');
+  });
+  it("updates real readings immediately and cancels opacity feedback when motion is disabled", () => {
+    const card = fixture(); card.reducedMotion.matches = false; card.updateModel();
+    const reading = card.shadowRoot.querySelector('[data-value="load"]');
+    const cancel = vi.fn(); reading.animate = vi.fn(() => ({ cancel }));
+    card.hassValue.states[card.config.entities.load_power].state = "1250";
+    card.updateModel();
+    expect(reading.textContent).toBe("1.25 kW");
+    expect(reading.animate).toHaveBeenCalledOnce();
+    card.reducedMotion.matches = true; card.cancelTextAnimations();
+    expect(cancel).toHaveBeenCalledOnce();
+    card.hassValue.states[card.config.entities.load_power].state = "1500"; card.updateModel();
+    expect(reading.textContent).toBe("1.50 kW");
+    expect(reading.animate).toHaveBeenCalledOnce();
+  });
+  it("cancels all text feedback immediately when telemetry becomes stale", () => {
+    const card = fixture(); card.reducedMotion.matches = false; card.updateModel();
+    const reading = card.shadowRoot.querySelector('[data-value="load"]'); const cancel = vi.fn();
+    reading.animate = vi.fn(() => ({cancel}));
+    card.hassValue.states[card.config.entities.load_power].state = "1250"; card.updateModel();
+    expect(card.textAnimations.size).toBe(1);
+    card.hassValue.states[card.config.entities.freshness].state = "off"; card.updateModel();
+    expect(card.textAnimations.size).toBe(0); expect(cancel).toHaveBeenCalledOnce();
+  });
   it("aligns bundled wires to visible PNG bounds but keeps uploads conservative", () => {
     const card = fixture();
     const root = card.shadowRoot;

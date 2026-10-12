@@ -40,9 +40,12 @@ export class FlowAnimator {
    */
   setFlow(direction, watts) {
     const changed = direction !== this.direction;
+    const now = performance.now();
+    const phase = ((now - this.startedAt) % this.duration) / this.duration;
     this.direction = direction;
     this.duration = durationForPower(watts);
-    if (changed) this.startedAt = performance.now();
+    // Preserve spatial phase as watts change; speed may change but arrows must not teleport.
+    this.startedAt = changed ? now : now - phase * this.duration;
     this.path.dataset.direction = direction;
     if (direction === "stopped" || this.reducedMotion || !this.visible) {
       this.stop();

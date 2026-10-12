@@ -25,7 +25,7 @@ PowerFlo reads Home Assistant entities. It does not connect to Modbus, call Home
 - Reversible solar, grid, battery, and load arrows driven by current power state.
 - Freshness-gated transform-only flow particles.
 - Rounded, image-safe routes with small reversible directional chevrons; default endpoints align to the visible enclosure, not transparent image padding. Uploaded art uses conservative full-image bounds.
-- State-aware illustrations occupy the top corner of roomy estimate columns; narrow layouts use full-width rows. Energy summaries remain icon-free.
+- State-aware illustrations sit above a connected milestone rail, with runtime separate; narrow layouts use a two-column milestone group. Energy summaries remain icon-free.
 - Solar, Grid, Load, and Battery energy histories with Today, Week, and Month views; Week/Month use validated long-term statistics.
 - Shared pointer, touch, and keyboard chart inspection with actual observation timestamps.
 - Editable title, inverter identity, ratings, clock format, and safe local raster image upload.
@@ -462,3 +462,15 @@ See [SECURITY.md](SECURITY.md) for the read-only implementation boundary and [Ta
 ## License
 
 MIT
+
+## Refined display and interaction
+
+PowerFlo inherits HA fonts; all display panels remain transparent. Large readings have smaller units. Topology icons share one SVG family; summaries have no icons. Runtime is separate from the connected charging milestones. Targets are sorted and duplicate SOC goals are collapsed. Completed milestones say `Reached`; the configured goal says `Target reached`.
+
+Hover or touch graphs to inspect actual observations with a shared cursor, point markers and compact time/value tooltips. First touch pins inspection; keyboard arrows operate the native range control and Escape clears it. Missing statistics intervals split paths instead of inventing continuity. Period totals remain visible during inspection.
+
+Text updates immediately. Limited opacity feedback lasts 160 ms, runs at most once per element per 30 seconds, and skips small numeric changes. Flow-speed changes preserve particle position. Stale, hidden and reduced-motion states stop animation work; mobile layouts without connectors stop invisible flow loops.
+
+Theme authors may override `--powerflo-solar-color`, `--powerflo-grid-color`, `--powerflo-battery-color` and `--powerflo-load-color`. Recheck contrast against your actual background after overrides. No external font request was added.
+
+See [VISUAL-REFINEMENTS.md](VISUAL-REFINEMENTS.md) for the six-part review and verification limits. Installation and forecast formulas remain unchanged. The dated reference stays fixed; `assets/current-design.png` is the simulated implementation preview.
