@@ -37,7 +37,7 @@ export const TOKENS = Object.freeze({
   borderWidth: "0.0625rem",
   iconSm: "1.25rem",
   iconMd: "2rem",
-  forecastIconSize: "2rem",
+  forecastIconSize: "2.5rem",
   iconLg: "7rem",
   touch: "2.75rem",
   cardMinHeight: "34rem",
@@ -51,7 +51,8 @@ export const TOKENS = Object.freeze({
   easeOut: "cubic-bezier(0.22, 1, 0.36, 1)",
   easeInOut: "cubic-bezier(0.65, 0, 0.35, 1)",
   particleSize: "0.4rem",
-  lineWidth: "0.22rem",
+  lineWidth: "0.16rem",
+  chevronWidth: "2.25",
   chartHeight: "3.1rem",
   chartPanelHeight: "11rem",
   chartLineWidth: "1.75",
@@ -67,10 +68,11 @@ export const TOKENS = Object.freeze({
   lineHeightBody: "1.4",
   inverterWidth: "12rem",
   artWidth: "22rem",
-  topologyHeight: "34rem",
+  topologyHeight: "30rem",
   socSize: "5.5rem",
   socStrokeWidth: "5",
-  forecastSize: "clamp(1rem, 1.6cqi, 1.4rem)",
+  forecastSize: "clamp(1.15rem, 1.65cqi, 1.65rem)",
+  forecastMinHeight: "8rem",
   periodValueSize: "clamp(1.2rem, 2cqi, 1.8rem)",
   focusWidth: "0.125rem",
   productInk: "oklch(0.21 0.015 240)",
@@ -86,7 +88,10 @@ export const TOKENS = Object.freeze({
 export const BREAKPOINTS = Object.freeze({ compact: "58rem", narrow: "34rem" });
 
 /** Normalized connector canvas and inverter attachment positions. */
-export const FLOW_GEOMETRY = Object.freeze({ width: 1000, height: 600, arrowClearance: 16, leftPort: 0.35, rightPort: 0.65, sourceUpper: 0.25, sourceLower: 0.75 });
+export const FLOW_GEOMETRY = Object.freeze({ width: 1000, height: 600, arrowClearance: 8, cornerRadius: 18, leftPort: 0.3, rightPort: 0.7, sourceUpper: 0.28, sourceLower: 0.72 });
+
+/** Measured nontransparent bounds of the bundled PNG; uploaded art uses its full box. */
+export const DEFAULT_ART_BOUNDS = Object.freeze({ left: 144 / 1145, top: 140 / 1374, right: 1002 / 1145, bottom: 1251 / 1374 });
 
 /**
  * Converts tokens into CSS custom properties scoped to the card.

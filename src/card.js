@@ -8,6 +8,7 @@ import { deriveModel, numericState } from "./state-model.js";
 import { BatteryChargeEstimator, BatteryRuntimeEstimator, formatRuntime } from "./runtime.js";
 import { cardStyles } from "./styles.js";
 import { connectorPath } from "./connector-geometry.js";
+import { DEFAULT_ART_BOUNDS } from "./tokens.js";
 import { estimateConfidence, projectCharge } from "./charge-model.js";
 import { nearestObservation } from "./chart-inspection.js";
 import { loadEnergyStatistics } from "./statistics.js";
@@ -162,7 +163,12 @@ export class PowerFloCard extends HTMLElement {
   updateConnectorGeometry() {
     const canvas = this.shadowRoot.querySelector(".topology").getBoundingClientRect();
     if (!canvas.width || !canvas.height) return;
-    const inverter = this.shadowRoot.querySelector(".inverter-visual").getBoundingClientRect();
+    const box = this.shadowRoot.querySelector(".inverter-visual").getBoundingClientRect();
+    // Transparent padding in the shipped art must not create a false gap between wire and enclosure.
+    const bounds = this.dataset.customImage === "true" ? { left: 0, top: 0, right: 1, bottom: 1 } : DEFAULT_ART_BOUNDS;
+    const inverter = { left: box.left + box.width * bounds.left, right: box.left + box.width * bounds.right,
+      top: box.top + box.height * bounds.top, bottom: box.top + box.height * bounds.bottom,
+      width: box.width * (bounds.right - bounds.left), height: box.height * (bounds.bottom - bounds.top) };
     for (const name of FLOW_NAMES) {
       const node = this.shadowRoot.querySelector(`.node.${name}`).getBoundingClientRect();
       this.shadowRoot.querySelector(`[data-flow-path="${name}"]`).setAttribute("d", connectorPath(canvas, inverter, node, name));
@@ -201,6 +207,17 @@ export class PowerFloCard extends HTMLElement {
       <footer class="summaries">${SUMMARY_NAMES.map(name => `<section class="summary" data-domain="${name}"><div class="summary-header">${label(name)}<span class="summary-value" data-summary-value="${name}"></span></div><div class="summary-coverage" data-coverage="${name}"></div><svg class="spark" viewBox="0 0 100 36" preserveAspectRatio="none" aria-hidden="true"><path class="area" data-summary-area="${name}"></path><path data-summary-path="${name}"></path><line class="chart-cursor" data-cursor="${name}" y1="0" y2="36" hidden></line></svg><div class="inspection-value" data-inspection="${name}"></div><div class="spark-labels"><span data-period-start></span><span>Now</span></div></section>`).join("")}</footer>
       <div class="chart-inspector"><label for="history-cursor">Inspect recorded time</label><input id="history-cursor" type="range" min="0" max="1000" value="1000"><output class="inspection-time" aria-live="polite">Move over a graph or use the time slider</output></div>
     </div></ha-card>`;
+    for (const marker of this.shadowRoot.querySelectorAll("marker")) {
+      marker.setAttribute("markerWidth", "4");
+      marker.setAttribute("markerHeight", "4");
+      const arrow = marker.querySelector("path");
+      arrow.setAttribute("stroke", arrow.getAttribute("fill"));
+      arrow.setAttribute("fill", "none");
+      arrow.setAttribute("stroke-width", "1.8");
+      arrow.setAttribute("stroke-linecap", "round");
+      arrow.setAttribute("stroke-linejoin", "round");
+      arrow.setAttribute("d", "M1 1 7 5 1 9");
+    }
     for (const [index, item] of [...this.shadowRoot.querySelectorAll(".forecast-item")].entries()) {
       const content = document.createElement("div");
       content.className = "forecast-content";
@@ -239,7 +256,7 @@ export class PowerFloCard extends HTMLElement {
    * @returns {string} Trusted SVG markup.
    */
   flowMarkup(name, path) {
-    return `<g class="flow-${name}"><path class="flow-path" data-flow-path="${name}" d="${path}"></path>${[0, 1, 2].map(() => `<circle class="particle" data-flow-particle="${name}" r="4"></circle>`).join("")}</g>`;
+    return `<g class="flow-${name}"><path class="flow-path" data-flow-path="${name}" d="${path}"></path>${[0, 1, 2].map(() => `<path class="particle" data-flow-particle="${name}" d="M-5 -4 0 0 -5 4"></path>`).join("")}</g>`;
   }
 
   /** Initializes transform-only animators for the current DOM. */

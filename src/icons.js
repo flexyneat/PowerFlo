@@ -28,13 +28,11 @@ export function batteryBankIcon() {
  */
 export function forecastIcon(status, target = null) {
   const level = target === null ? 0.5 : Math.max(0, Math.min(1, target / 100));
+  if (status === "charging") return `<svg viewBox="0 0 48 48" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M19 7V3h10v4M13 7h22v36H13Z"/><path d="m26 13-9 13h8l-3 12 11-16h-9Z"/></g></svg>`;
+  if (status === "target" || status === "reserve") return `<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="18" fill="none" stroke="currentColor" stroke-width="2"/><path d="m15 24 6 6 12-13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  if (status === "ready" || status === "warming") return `<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="18" fill="none" stroke="var(--pf-border)" stroke-width="2"/><circle cx="24" cy="24" r="18" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="${113.1 * level} 113.1" transform="rotate(-90 24 24)"/><path d="M24 14v11l7 4" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   const fillHeight = 22 * level;
   const badges = {
-    target: '<path d="m29 34 4 4 8-9"/>',
-    reserve: '<path d="m29 34 4 4 8-9"/>',
-    charging: '<path d="m36 26-7 9h6l-2 8 9-11h-7Z"/>',
-    ready: '<circle cx="35" cy="35" r="9"/><path d="M35 29v6l4 3"/>',
-    warming: '<circle cx="35" cy="35" r="9"/><path d="M35 29v6l4 3"/>',
     "solar-limited": '<circle cx="35" cy="35" r="5"/><path d="M35 25v-3M35 45v-3M25 35h-3M45 35h-3M28 28l-2-2M42 42l-2-2M42 28l2-2M26 42l2-2"/>',
     unavailable: '<circle cx="35" cy="35" r="9"/><path d="M35 29v7M35 40v1"/>',
   };

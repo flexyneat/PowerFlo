@@ -44,7 +44,11 @@
           const dayEnd = Math.min(day + 86399000, end);
           for (let index = 0; index <= 12; index += 1) {
             const timestamp = day + (dayEnd - day) * index / 12;
-            output.push({ entity_id: id, state: String(maximum * index / 12 * (today ? 1 : 1.3)), last_changed: new Date(timestamp).toISOString() });
+            const fraction = index / 12;
+            // Labeled synthetic energy traces show distinct, nonnegative cumulative usage shapes.
+            const progress = key === "solar_today" ? fraction ** 2.2 : key === "grid_today" ? fraction ** 0.75
+              : key === "battery_today" ? fraction ** 1.4 : fraction + Math.sin(fraction * Math.PI * 2) * 0.04;
+            output.push({ entity_id: id, state: String(maximum * progress * (today ? 1 : 1.3)), last_changed: new Date(timestamp).toISOString() });
           }
         }
         return output;

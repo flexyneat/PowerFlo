@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Replace square routes and moving dots with smooth rounded connectors and tangent-oriented directional chevrons.
+- Align bundled-art endpoints to measured visible alpha bounds while retaining conservative bounds for uploaded images.
+- Remove duplicated header/forecast framing; give forecast text full-width rows and larger top-corner state illustrations, with full-width narrow-layout estimates.
+
 - Keep connector approaches and arrowheads outside the full inverter-image rectangle, including custom uploaded art.
 - Add state-aware battery/status illustrations beside runtime, 50%, 75%, 95%, and full/target estimates; retain icon-free energy summaries.
 

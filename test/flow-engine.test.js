@@ -53,7 +53,7 @@ describe("FlowAnimator", () => {
     animator.startedAt = 0;
     animator.duration = 1000;
     animator.tick(500);
-    expect(particles[0].style.transform).toBe("translate3d(50px, 25px, 0)");
+    expect(particles[0].style.transform).toBe("translate3d(50px, 25px, 0) rotate(0deg)");
     expect(particles[0].style.opacity).toBe("1");
   });
 
@@ -63,7 +63,20 @@ describe("FlowAnimator", () => {
     animator.duration = 1000;
     animator.startedAt = 0;
     animator.tick(250);
-    expect(particles[0].style.transform).toBe("translate3d(75px, 25px, 0)");
+    expect(particles[0].style.transform).toBe("translate3d(75px, 25px, 0) rotate(180deg)");
+  });
+
+  it("orients chevrons along vertical flow segments and reverses their heading", () => {
+    const { animator, path, particles } = fixture();
+    path.getPointAtLength = distance => ({ x: 20, y: distance });
+    animator.duration = 1000;
+    animator.startedAt = 0;
+    animator.direction = "forward";
+    animator.tick(250);
+    expect(particles[0].style.transform).toBe("translate3d(20px, 25px, 0) rotate(90deg)");
+    animator.direction = "reverse";
+    animator.tick(250);
+    expect(particles[0].style.transform).toBe("translate3d(20px, 75px, 0) rotate(270deg)");
   });
 
   it("stops for stale, hidden, and reduced-motion states", () => {

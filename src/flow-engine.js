@@ -96,7 +96,11 @@ export class FlowAnimator {
       const phase = (base + index / this.particles.length) % 1;
       const progress = this.direction === "reverse" ? 1 - phase : phase;
       const point = this.path.getPointAtLength(length * progress);
-      particle.style.transform = `translate3d(${point.x}px, ${point.y}px, 0)`;
+      const ahead = this.path.getPointAtLength(Math.min(length, length * progress + 1));
+      const behind = this.path.getPointAtLength(Math.max(0, length * progress - 1));
+      const angle = Math.atan2(ahead.y - behind.y, ahead.x - behind.x) * 180 / Math.PI + (this.direction === "reverse" ? 180 : 0);
+      // Tangent-oriented chevrons make the direction legible on the curved elbow as well as the trunk.
+      particle.style.transform = `translate3d(${point.x}px, ${point.y}px, 0) rotate(${angle}deg)`;
       particle.style.opacity = "1";
     }
     this.frame = requestAnimationFrame((nextTime) => this.tick(nextTime));

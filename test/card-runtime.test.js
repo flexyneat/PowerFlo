@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PowerFloCard } from "../src/card.js";
 import { DEFAULT_CONFIG } from "../src/config.js";
 import { connectorPath } from "../src/connector-geometry.js";
-import { FLOW_GEOMETRY } from "../src/tokens.js";
+import { DEFAULT_ART_BOUNDS, FLOW_GEOMETRY } from "../src/tokens.js";
 
 if (!customElements.get("test-runtime-card")) customElements.define("test-runtime-card", PowerFloCard);
 
@@ -72,6 +72,21 @@ describe("battery panel runtime", () => {
 });
 
 describe("visible flow arrows and forecast illustrations", () => {
+  it("aligns bundled wires to visible PNG bounds but keeps uploads conservative", () => {
+    const card = fixture();
+    const root = card.shadowRoot;
+    root.querySelector(".topology").getBoundingClientRect = () => ({ left: 0, top: 0, width: 1000, height: 600 });
+    root.querySelector(".inverter-visual").getBoundingClientRect = () => ({ left: 400, right: 600, top: 120, bottom: 480, width: 200, height: 360 });
+    for (const name of ["solar", "grid", "battery", "load"]) root.querySelector(`.node.${name}`).getBoundingClientRect = () => ({ left: 0, right: 300, top: 0, height: 200 });
+    card.updateConnectorGeometry();
+    const path = root.querySelector('[data-flow-path="solar"]');
+    expect(Number(path.getAttribute("d").match(/V([^ ]+)$/)[1])).toBeCloseTo(120 + 360 * DEFAULT_ART_BOUNDS.top - FLOW_GEOMETRY.arrowClearance);
+    card.dataset.customImage = "true";
+    card.updateConnectorGeometry();
+    expect(Number(path.getAttribute("d").match(/V([^ ]+)$/)[1])).toBe(120 - FLOW_GEOMETRY.arrowClearance);
+    expect(root.querySelectorAll("circle.particle")).toHaveLength(0);
+    expect(root.querySelectorAll("path.particle")).toHaveLength(12);
+  });
   it("keeps every route segment outside the image rectangle including overlapping panel anchors", () => {
     const canvas = { left: 0, top: 0, width: 1000, height: 600 };
     const inverter = { left: 400, right: 600, top: 120, bottom: 480, width: 200, height: 360 };
@@ -80,7 +95,9 @@ describe("visible flow arrows and forecast illustrations", () => {
       const node = { left: left ? 0 : 700, right: left ? 300 : 1000, top: 160, height: 280 };
       const path = connectorPath(canvas, inverter, node, name);
       const numbers = path.match(/-?\d+(?:\.\d+)?/g).map(Number);
-      const [fromX, fromY, portX, endY] = numbers;
+      const [fromX, fromY] = numbers;
+      const endY = numbers.at(-1);
+      const portX = numbers.at(-3);
       const upper = name === "solar" || name === "grid";
       expect(endY).toBe(upper ? inverter.top - FLOW_GEOMETRY.arrowClearance : inverter.bottom + FLOW_GEOMETRY.arrowClearance);
       // Every leg stays on an external lane or above/below the image; no arrow can be occluded.
@@ -88,13 +105,18 @@ describe("visible flow arrows and forecast illustrations", () => {
       expect(upper ? fromY < inverter.top : fromY > inverter.bottom).toBe(true);
       expect(portX).toBeGreaterThan(inverter.left);
       expect(portX).toBeLessThan(inverter.right);
+      expect(path).toContain(" Q");
     }
   });
   it("normalizes offset and scaled layouts without shrinking the physical arrow clearance", () => {
     const path = connectorPath({ left: 50, top: 25, width: 2000, height: 1200 },
       { left: 850, right: 1250, top: 265, bottom: 985, width: 400 },
       { right: 650, top: 105, height: 160 }, "solar");
-    expect(path).toBe("M300 60 H470 V112");
+    const points = path.match(/-?\d+(?:\.\d+)?/g).map(Number);
+    expect(points[0]).toBe(300);
+    expect(points[1]).toBeCloseTo(62.4);
+    expect(points.at(-1)).toBe(116);
+    expect(path).toContain(" Q460 ");
   });
   it("shows state-aware icons beside all five estimates, never in energy summaries", () => {
     const card = fixture({ battery_positive: "charge" });

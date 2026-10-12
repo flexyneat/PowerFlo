@@ -24,8 +24,8 @@ PowerFlo reads Home Assistant entities. It does not connect to Modbus, call Home
 - Configurable battery and grid sign conventions.
 - Reversible solar, grid, battery, and load arrows driven by current power state.
 - Freshness-gated transform-only flow particles.
-- Image-safe arrow routes keep endpoints clear of default and uploaded inverter art.
-- State-aware battery illustrations accompany all five estimate columns; energy summaries remain icon-free.
+- Rounded, image-safe routes with small reversible directional chevrons; default endpoints align to the visible enclosure, not transparent image padding. Uploaded art uses conservative full-image bounds.
+- State-aware illustrations occupy the top corner of roomy estimate columns; narrow layouts use full-width rows. Energy summaries remain icon-free.
 - Solar, Grid, Load, and Battery energy histories with Today, Week, and Month views; Week/Month use validated long-term statistics.
 - Shared pointer, touch, and keyboard chart inspection with actual observation timestamps.
 - Editable title, inverter identity, ratings, clock format, and safe local raster image upload.
