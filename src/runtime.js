@@ -77,6 +77,7 @@ export class BatteryRuntimeEstimator {
     // Keep the sample spanning the left boundary so partial intervals retain their correct weight.
     while (this.samples.length > 1 && this.samples[1].time <= start) this.samples.shift();
     let weightedWattsMs = 0;
+    let squaredWattsMs = 0;
     let coverageMs = 0;
     for (let index = 0; index < this.samples.length; index += 1) {
       const sample = this.samples[index];
@@ -84,12 +85,15 @@ export class BatteryRuntimeEstimator {
       const to = this.samples[index + 1]?.time ?? now;
       const duration = Math.max(0, to - from);
       weightedWattsMs += sample.watts * duration;
+      squaredWattsMs += sample.watts * sample.watts * duration;
       coverageMs += duration;
     }
     if (coverageMs < MINIMUM_COVERAGE_MS) return { status: "warming" };
     const averageWatts = weightedWattsMs / coverageMs;
     const remainingKwh = capacityKwh * Math.abs(soc - target) / 100;
-    return { status: "ready", hours: remainingKwh / (averageWatts / 1000), averageWatts, coverageMs };
+    const variation = Math.sqrt(Math.max(0, squaredWattsMs / coverageMs - averageWatts ** 2)) / averageWatts;
+    return { status: "ready", hours: remainingKwh / (averageWatts / 1000), averageWatts, coverageMs,
+      variation, sampleCount: this.samples.length, ageMs: now - sampleTime };
   }
 }
 

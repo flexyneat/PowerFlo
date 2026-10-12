@@ -49,11 +49,32 @@
         }
         return output;
       });
+    },
+    /**
+     * Supplies simulated energy-statistics metadata and hourly changes, never live HA data.
+     * @param {Object} message Read-only statistics message.
+     * @returns {Promise<unknown>} Simulated statistics result.
+     */
+    callWS: async message => {
+      if (message.type === "recorder/get_statistics_metadata") return message.statistic_ids.map(id => ({ statistic_id: id, has_sum: true, unit_class: "energy", unit_of_measurement: "kWh" }));
+      const start = Date.parse(message.start_time);
+      const end = Math.floor(Date.parse(message.end_time)/3600000)*3600000;
+      return Object.fromEntries(message.statistic_ids.map((id, index) => {
+        const rows = [];
+        for (let time = start; time + 3600000 <= end; time += 3600000) {
+          const localHour = (new Date(time).getUTCHours() + 1) % 24;
+          const daylight = Math.max(0, Math.sin((localHour-6)/12*Math.PI));
+          const change = index === 0 ? daylight * 2.1 : index === 1 ? .2 + (1-daylight)*.35 : index === 2 ? .3 + daylight*.5 : .18 + (1-daylight)*.2;
+          rows.push({ start: time, end: time+3600000, change });
+        }
+        return [id, rows];
+      }));
     } };
   /** Publishes a simulated fresh sensor report every five seconds. */
   function publish() {
     const now = new Date().toISOString();
     hass.states = Object.fromEntries(Object.entries(entities).map(([key, id]) => [id, { state: String(values[key]), attributes: {}, last_updated: now }]));
+    hass.states["sun.sun"] = { state: "above_horizon", attributes: { next_setting: new Date(Date.now()+5*3600000).toISOString() } };
     card.hass = hass;
   }
   publish();

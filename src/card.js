@@ -2,12 +2,15 @@
 import { normalizeConfig, validateConfig } from "./config.js";
 import { FlowAnimator } from "./flow-engine.js";
 import { appendHistoryPoint, downsample, sparklinePath } from "./history.js";
-import { batteryBankIcon, gridIcon, inverterIcon, loadIcon, solarIcon } from "./icons.js";
+import { batteryBankIcon, gridIcon, loadIcon, solarIcon } from "./icons.js";
 import { loadPeriodHistory, periodEnergy, periodRange } from "./period-history.js";
-import { deriveModel } from "./state-model.js";
+import { deriveModel, numericState } from "./state-model.js";
 import { BatteryChargeEstimator, BatteryRuntimeEstimator, formatRuntime } from "./runtime.js";
 import { cardStyles } from "./styles.js";
 import { FLOW_GEOMETRY } from "./tokens.js";
+import { estimateConfidence, projectCharge } from "./charge-model.js";
+import { nearestObservation } from "./chart-inspection.js";
+import { loadEnergyStatistics } from "./statistics.js";
 
 const FLOW_NAMES = Object.freeze(["solar", "grid", "battery", "load"]);
 const SUMMARY_NAMES = Object.freeze(["solar", "grid", "load", "battery"]);
@@ -57,6 +60,9 @@ export class PowerFloCard extends HTMLElement {
     this.period = "today";
     this.history = new Map();
     this.historyCache = new Map();
+    this.statisticsHistory = new Map();
+    this.chartSeries = new Map();
+    this.cursorRatio = null;
     this.historyState = { status: "idle" };
     this.historyRequest = 0;
     this.lastDayCheck = 0;
@@ -83,6 +89,7 @@ export class PowerFloCard extends HTMLElement {
     this.historyKey = "";
     this.historyCache.clear();
     this.history.clear();
+    this.statisticsHistory.clear();
     if (!this.rendered) this.render();
     this.updateStaticText();
     this.queueUpdate();
@@ -155,7 +162,7 @@ export class PowerFloCard extends HTMLElement {
   updateConnectorGeometry() {
     const canvas = this.shadowRoot.querySelector(".topology").getBoundingClientRect();
     if (!canvas.width || !canvas.height) return;
-    const inverter = this.shadowRoot.querySelector(".inverter").getBoundingClientRect();
+    const inverter = this.shadowRoot.querySelector(".inverter-visual").getBoundingClientRect();
     const x = coordinate => (coordinate - canvas.left) / canvas.width * FLOW_GEOMETRY.width;
     const y = coordinate => (coordinate - canvas.top) / canvas.height * FLOW_GEOMETRY.height;
     for (const name of FLOW_NAMES) {
@@ -163,10 +170,10 @@ export class PowerFloCard extends HTMLElement {
       const left = name === "solar" || name === "battery";
       const upper = name === "solar" || name === "grid";
       const fromX = x(left ? node.right : node.left);
-      const fromY = y(node.top + node.height / 2);
-      const toX = x(left ? inverter.left : inverter.right);
+      const fromY = y(node.top + node.height * (upper ? FLOW_GEOMETRY.sourceUpper : FLOW_GEOMETRY.sourceLower));
+      const toX = x(inverter.left + inverter.width * (left ? FLOW_GEOMETRY.leftPort : FLOW_GEOMETRY.rightPort));
       const toY = y(inverter.top + inverter.height * (upper ? FLOW_GEOMETRY.upperAnchor : FLOW_GEOMETRY.lowerAnchor));
-      this.shadowRoot.querySelector(`[data-flow-path="${name}"]`).setAttribute("d", `M${fromX} ${fromY} H${(fromX + toX) / 2} V${toY} H${toX}`);
+      this.shadowRoot.querySelector(`[data-flow-path="${name}"]`).setAttribute("d", `M${fromX} ${fromY} H${toX} V${toY}`);
     }
   }
 
@@ -185,25 +192,38 @@ export class PowerFloCard extends HTMLElement {
   /** Creates trusted markup and keyboard-operable period controls once. */
   render() {
     this.shadowRoot.innerHTML = `<style>${cardStyles()}</style><ha-card><div class="shell">
-      <header class="header"><div><div class="title"></div><div class="status"></div></div><div class="freshness"></div><time class="clock"></time></header>
+      <header class="header"><div class="identity"><div class="title"></div><div class="status"></div></div><div class="live-pill"><span class="freshness"></span><span class="sample-age"></span></div><time class="clock"></time></header>
       <div class="notice" role="status" aria-live="polite"></div>
       <main class="topology">
         <section class="node solar"><div class="node-icon">${solarIcon()}</div><div class="node-content"><div class="node-title">Solar</div><div class="node-value" data-value="solar"></div><div class="mppts">${[1, 2, 3].map(i => `<div class="mppt">MPPT ${i}<strong data-value="pv${i}"></strong></div>`).join("")}</div></div></section>
         <section class="node grid"><div class="node-icon">${gridIcon()}</div><div class="node-content"><div class="node-title">Grid</div><div class="node-value" data-value="grid"></div><div class="node-meta" data-meta="grid"></div></div></section>
-        <section class="inverter"><div class="inverter-visual"></div><div class="inverter-name"></div><div class="inverter-model"></div><div class="inverter-capacity"></div><div class="inverter-state"></div></section>
-        <section class="node battery"><div class="node-content"><div class="battery-heading"><div class="node-title">Battery</div><div class="node-icon">${batteryBankIcon()}</div></div>
-          <div class="battery-reading"><div class="soc-ring"><svg viewBox="0 0 100 100" aria-hidden="true"><circle class="soc-track" cx="50" cy="50" r="44"/><circle class="soc-fill" cx="50" cy="50" r="44" pathLength="100"/></svg><div class="soc-value" data-value="soc"></div></div><div><div class="node-value" data-value="battery"></div><div class="node-meta" data-meta="battery"></div><div class="node-meta" data-meta="battery-capacity"></div></div></div>
-          <div class="forecasts"><div><div class="forecast-label">Runtime estimate</div><div class="forecast-value" data-meta="battery-runtime"></div><div class="forecast-basis" data-meta="runtime-basis"></div></div><div><div class="forecast-label" data-meta="charge-label">Time to full</div><div class="forecast-value" data-meta="battery-charge"></div><div class="forecast-basis" data-meta="charge-basis"></div></div></div>
-        </div></section>
+        <section class="inverter"><div class="inverter-visual"></div><div class="inverter-copy"><div class="inverter-name"></div><div class="inverter-model"></div><div class="inverter-capacity"></div><div class="inverter-state"></div></div></section>
+        <section class="node battery"><div class="node-icon">${batteryBankIcon()}</div><div class="node-content"><div class="node-title">Battery</div><div class="node-value" data-value="soc"></div><div class="battery-power" data-value="battery"></div></div><div class="battery-details"><div class="node-meta" data-meta="battery"></div><div class="node-meta" data-meta="battery-capacity"></div></div></section>
         <section class="node load"><div class="node-icon">${loadIcon()}</div><div class="node-content"><div class="node-title">Protected load</div><div class="node-value" data-value="load"></div><div class="node-meta">Live inverter output</div></div></section>
         <svg class="connectors" viewBox="0 0 1000 600" preserveAspectRatio="none" aria-hidden="true"><defs>${FLOW_NAMES.map(name => `<marker id="arrow-${name}" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 10 5 0 10Z" fill="var(--pf-${name})"/></marker>`).join("")}</defs>${this.flowMarkup("solar", "M330 145 H430 V245")}${this.flowMarkup("grid", "M670 145 H570 V245")}${this.flowMarkup("battery", "M330 455 H430 V355")}${this.flowMarkup("load", "M670 455 H570 V355")}</svg>
       </main>
+      <section class="forecast-strip" aria-label="Battery estimates"><div class="forecast-item"><div class="forecast-label">Runtime to reserve</div><div class="forecast-value" data-meta="battery-runtime"></div><div class="forecast-basis" data-meta="runtime-basis"></div><div class="confidence" data-meta="runtime-confidence"></div></div>${[50,75,95].map(target => `<div class="forecast-item"><div class="forecast-label">Time to ${target}%</div><div class="forecast-value" data-target="${target}"></div><div class="forecast-basis" data-target-basis="${target}"></div></div>`).join("")}<div class="forecast-item"><div class="forecast-label" data-meta="charge-label"></div><div class="forecast-value" data-meta="battery-charge"></div><div class="forecast-basis" data-meta="charge-basis"></div><div class="confidence" data-meta="charge-confidence"></div></div></section>
+      <details class="estimate-details"><summary>Estimate confidence and assumptions</summary><div data-meta="confidence-detail"></div></details>
       <div class="history-toolbar"><div><div class="history-heading">Energy history</div><div class="history-caption"></div></div><div class="period-controls" role="group" aria-label="Energy history period">${PERIODS.map(period => `<button type="button" data-period="${period}" aria-pressed="${period === this.period}">${label(period)}</button>`).join("")}</div></div>
       <div class="history-message" role="status" aria-live="polite"><span data-history-message></span><button class="retry" type="button" hidden>Retry history</button></div>
-      <footer class="summaries">${SUMMARY_NAMES.map(name => `<section class="summary" data-domain="${name}"><div class="summary-header">${label(name)}<span class="summary-value" data-summary-value="${name}"></span></div><div class="summary-coverage" data-coverage="${name}"></div><svg class="spark" viewBox="0 0 100 36" preserveAspectRatio="none" aria-hidden="true"><path class="area" data-summary-area="${name}"></path><path data-summary-path="${name}"></path></svg><div class="spark-labels"><span data-period-start></span><span>Now</span></div></section>`).join("")}</footer>
+      <footer class="summaries">${SUMMARY_NAMES.map(name => `<section class="summary" data-domain="${name}"><div class="summary-header">${label(name)}<span class="summary-value" data-summary-value="${name}"></span></div><div class="summary-coverage" data-coverage="${name}"></div><svg class="spark" viewBox="0 0 100 36" preserveAspectRatio="none" aria-hidden="true"><path class="area" data-summary-area="${name}"></path><path data-summary-path="${name}"></path><line class="chart-cursor" data-cursor="${name}" y1="0" y2="36" hidden></line></svg><div class="inspection-value" data-inspection="${name}"></div><div class="spark-labels"><span data-period-start></span><span>Now</span></div></section>`).join("")}</footer>
+      <div class="chart-inspector"><label for="history-cursor">Inspect recorded time</label><input id="history-cursor" type="range" min="0" max="1000" value="1000"><output class="inspection-time" aria-live="polite">Move over a graph or use the time slider</output></div>
     </div></ha-card>`;
     for (const button of this.shadowRoot.querySelectorAll("[data-period]")) button.addEventListener("click", () => this.selectPeriod(button.dataset.period));
+    // Channel readings use the full solar panel width rather than crowding the power column.
+    this.shadowRoot.querySelector(".solar").append(this.shadowRoot.querySelector(".mppts"));
     this.shadowRoot.querySelector(".retry").addEventListener("click", () => this.loadHistoryIfNeeded(true));
+    const slider = this.shadowRoot.querySelector("#history-cursor");
+    slider.addEventListener("input", () => { this.cursorRatio = Number(slider.value) / 1000; this.updateInspection(); });
+    for (const chart of this.shadowRoot.querySelectorAll(".spark")) {
+      chart.addEventListener("pointermove", event => {
+        const rect = chart.getBoundingClientRect();
+        this.cursorRatio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+        slider.value = String(Math.round(this.cursorRatio * 1000));
+        this.updateInspection();
+      });
+      chart.addEventListener("pointerdown", event => { chart.setPointerCapture?.(event.pointerId); });
+    }
     this.rendered = true;
     this.createAnimators();
     this.updateStaticText();
@@ -246,7 +266,17 @@ export class PowerFloCard extends HTMLElement {
       image.alt = `${this.config.inverter_name} ${this.config.inverter_model}`;
       image.decoding = "async";
       visual.append(image);
-    } else visual.innerHTML = inverterIcon();
+    } else {
+      const image = document.createElement("img");
+      const resourceUrl = new URL(import.meta.url);
+      const imageUrl = new URL("./inverter-reference.png", resourceUrl);
+      imageUrl.search = resourceUrl.search;
+      image.src = imageUrl.href;
+      image.alt = "Illustrative inverter enclosure";
+      image.decoding = "async";
+      visual.append(image);
+    }
+    this.dataset.customImage = String(Boolean(this.config.inverter_image));
     this.updateClock();
   }
 
@@ -262,6 +292,7 @@ export class PowerFloCard extends HTMLElement {
     this.latestModel = model;
     this.polarity = model.polarity;
     this.dataset.state = model.dataState;
+    this.dataset.operatingNormal = String(["normal", "running"].includes(model.inverterStatus));
     this.setText(".status", `${label(model.inverterStatus)} · ${model.connected === null ? "Grid unavailable" : model.connected ? "On-grid" : "Off-grid"}`);
     this.setText(".freshness", model.dataState === "fresh" ? "LIVE" : label(model.dataState));
     this.setText(".notice", model.dataState === "fresh" ? "" : `Telemetry is ${model.dataState}; flow motion is paused.`);
@@ -274,7 +305,7 @@ export class PowerFloCard extends HTMLElement {
     for (const index of [1, 2, 3]) this.setText(`[data-value="pv${index}"]`, formatPower(model.values[`pv${index}Power`]));
     this.setText('[data-value="soc"]', formatValue(model.values.batterySoc, "%", 0));
     const soc = model.values.batterySoc;
-    this.shadowRoot.querySelector(".soc-fill").setAttribute("stroke-dasharray", `${soc === null ? 0 : Math.max(0, Math.min(100, soc))} 100`);
+    this.shadowRoot.querySelector(".soc-fill")?.setAttribute("stroke-dasharray", `${soc === null ? 0 : Math.max(0, Math.min(100, soc))} 100`);
     this.setText('[data-meta="battery"]', `${label(model.battery)} · ${formatValue(model.values.batteryVoltage, "V")} · ${formatValue(model.values.batteryTemperature, "°C")}`);
     this.setText('[data-meta="grid"]', `${label(model.grid)} · ${formatValue(model.values.gridVoltage, "V")} · ${formatValue(model.values.gridFrequency, "Hz")}`);
     this.updateRuntime(model);
@@ -299,12 +330,43 @@ export class PowerFloCard extends HTMLElement {
       unavailable: "Unavailable", reserve: "Reserve reached", target: "Target reached" };
     this.setText('[data-meta="battery-runtime"]', runtime.status === "ready" ? formatRuntime(runtime.hours) : runtime.status === "warming" ? "Collecting discharge data" : states[runtime.status]);
     this.setText('[data-meta="runtime-basis"]', `To ${this.config.battery_reserve_soc}% reserve${runtime.status === "ready" ? ` · ${Math.round(runtime.averageWatts)} W recent average` : ""}`);
-    this.setText('[data-meta="battery-charge"]', charge.status === "ready" ? formatRuntime(charge.hours) : charge.status === "warming" ? "Collecting charge data" : charge.status === "static" ? "Not charging" : states[charge.status]);
-    this.setText('[data-meta="charge-basis"]', charge.status === "ready" ? `At recent charge rate${input.soc >= 90 ? " · Taper may extend this" : ""}` : `To ${this.config.battery_charge_target_soc}% SOC`);
+    const forecastEntity = this.hassValue.states[this.config.entities.solar_forecast_power];
+    const forecastValue = numericState(this.hassValue.states, this.config.entities.solar_forecast_power);
+    const solarFresh = Date.parse(this.hassValue.states[this.config.entities.solar_power]?.last_reported
+      ?? this.hassValue.states[this.config.entities.solar_power]?.last_updated ?? "");
+    const solar = input.now - solarFresh <= input.maxAgeMs && solarFresh <= input.now ? model.values.solarPower : null;
+    const sunset = Date.parse(this.hassValue.states["sun.sun"]?.attributes?.next_setting ?? "");
+    const sunDown = this.hassValue.states["sun.sun"]?.state === "below_horizon";
+    const horizon = Math.min(this.config.solar_projection_hours, sunDown ? 0 : Number.isFinite(sunset) ? Math.max(0, (sunset - input.now) / 3_600_000) : this.config.solar_projection_hours);
+    const forecastAge = Date.parse(forecastEntity?.last_updated ?? "");
+    const validForecast = input.now - forecastAge <= 3_600_000 && forecastAge <= input.now ? forecastValue : null;
+    const gridImport = model.grid === "importing" ? Math.abs(model.values.gridPower ?? 0) : 0;
+    const projection = target => projectCharge({ rate: charge, soc: input.soc, target, capacityKwh: input.capacityKwh,
+      solarWatts: solar, gridImportWatts: gridImport, forecastSolarWatts: validForecast, solarHours: horizon,
+      taperStart: this.config.charge_taper_start_soc, taperFloor: this.config.charge_taper_floor_ratio });
+    const chargeResult = projection(this.config.battery_charge_target_soc);
+    const chargeText = result => result.status === "ready" ? formatRuntime(result.hours) : result.status === "solar-limited" ? "Needs more solar" :
+      result.status === "warming" ? "Collecting charge data" : result.status === "static" ? "Not charging" : states[result.status];
+    this.setText('[data-meta="battery-charge"]', chargeText(chargeResult));
+    this.setText('[data-meta="charge-basis"]', chargeResult.status === "ready" ? "Solar + net charge + assumed taper" : `To ${this.config.battery_charge_target_soc}% SOC`);
+    for (const target of [50, 75, 95]) {
+      const result = projection(target);
+      this.setText(`[data-target="${target}"]`, chargeText(result));
+      this.setText(`[data-target-basis="${target}"]`, result.status === "target" ? "Reached at current SOC" : result.status === "ready" ? "Solar + charge rate + taper" : "Awaiting charging conditions");
+    }
+    const dischargeConfidence = estimateConfidence(runtime, input.windowMs);
+    const chargeConfidence = estimateConfidence(charge, input.windowMs, true);
+    if (solar === null && chargeConfidence.level !== "Unavailable") chargeConfidence.level = "Limited";
+    this.setText('[data-meta="runtime-confidence"]', runtime.status === "ready" ? `${dischargeConfidence.level} confidence` : "");
+    this.setText('[data-meta="charge-confidence"]', chargeResult.status === "ready" ? `${chargeConfidence.level} confidence` : "");
+    this.setText('[data-meta="confidence-detail"]', `${charge.status === "ready" ? chargeConfidence.detail : dischargeConfidence.detail}. Net charge already includes solar; source share and taper are modeled, not calibrated battery specifications.`);
+    const ageSeconds = Number.isFinite(input.sampleTime) ? Math.max(0, Math.round((input.now - input.sampleTime) / 1000)) : null;
+    this.setText(".sample-age", ageSeconds === null ? "" : `${ageSeconds}s`);
   }
 
   /** Appends only fresh numeric live daily counters to the selected history. */
   appendLiveHistory() {
+    if (this.period !== "today") return;
     if (!this.latestModel || this.latestModel.dataState !== "fresh") return;
     const timeZone = this.hassValue.config?.time_zone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
     const midnight = periodRange("today", new Date(), timeZone).start.getTime();
@@ -354,6 +416,7 @@ export class PowerFloCard extends HTMLElement {
   selectPeriod(period) {
     if (!PERIODS.includes(period) || period === this.period) return;
     this.period = period;
+    this.cursorRatio = null;
     for (const button of this.shadowRoot.querySelectorAll("[data-period]")) button.setAttribute("aria-pressed", String(button.dataset.period === period));
     this.loadHistoryIfNeeded();
   }
@@ -366,13 +429,15 @@ export class PowerFloCard extends HTMLElement {
     if (!this.hassValue || !this.rendered) return;
     const timeZone = this.hassValue.config?.time_zone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
     const range = periodRange(this.period, new Date(), timeZone);
-    const ids = SUMMARY_NAMES.map(name => this.config.entities[`${name}_today`]);
+    const ids = SUMMARY_NAMES.map(name => this.period === "today" ? this.config.entities[`${name}_today`]
+      : this.config.statistics[name] || this.config.entities[`${name}_today`]);
     const day = new Intl.DateTimeFormat("en-CA", { timeZone }).format(new Date());
-    const key = `${timeZone}|${day}|${this.period}|${ids.join("|")}`;
+    const key = `${timeZone}|${day}|${Math.floor(Date.now()/3_600_000)}|${this.period}|${ids.join("|")}`;
     if (!force && key === this.historyKey) return;
     this.historyKey = key;
     const request = ++this.historyRequest;
-    this.history = this.historyCache.get(key) ?? new Map();
+    this.history = this.period === "today" ? this.historyCache.get(key) ?? new Map() : new Map();
+    this.statisticsHistory = this.period !== "today" ? this.historyCache.get(key) ?? new Map() : new Map();
     if (!force && this.historyCache.has(key)) {
       this.historyState = { status: "ready" };
       this.appendLiveHistory(); this.updateHistory(); return;
@@ -380,12 +445,14 @@ export class PowerFloCard extends HTMLElement {
     this.historyState = { status: "loading" };
     this.updateHistory();
     try {
-      const history = await loadPeriodHistory(this.hassValue, ids, range);
+      const history = this.period === "today" ? await loadPeriodHistory(this.hassValue, ids, range)
+        : await loadEnergyStatistics(this.hassValue, ids, range);
       if (request !== this.historyRequest) return;
-      this.history = history;
+      if (this.period === "today") this.history = history;
+      else this.statisticsHistory = history;
       this.historyState = { status: "ready" };
       this.appendLiveHistory();
-      this.historyCache.set(key, this.history);
+      this.historyCache.set(key, history);
       while (this.historyCache.size > 3) this.historyCache.delete(this.historyCache.keys().next().value);
     } catch {
       if (request !== this.historyRequest) return;
@@ -400,7 +467,7 @@ export class PowerFloCard extends HTMLElement {
     const timeZone = this.hassValue?.config?.time_zone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
     const range = periodRange(this.period, new Date(), timeZone);
     const startLabel = this.period === "today" ? "12 AM" : new Intl.DateTimeFormat(undefined, { timeZone, month: "short", day: "numeric" }).format(range.start);
-    this.setText(".history-caption", this.period === "today" ? "Today · midnight to now" : this.period === "week" ? "Last 7 local days · recorded energy" : "This month · recorded energy");
+    this.setText(".history-caption", this.period === "today" ? "Today · midnight to now" : this.period === "week" ? "Last 7 local days · long-term statistics" : "This month · long-term statistics");
     const loading = this.historyState.status === "loading";
     const failed = this.historyState.status === "error";
     this.setText("[data-history-message]", loading ? "Loading Recorder history…" : failed ? "History could not be loaded. Check Recorder access and retry." : "");
@@ -409,14 +476,20 @@ export class PowerFloCard extends HTMLElement {
     this.shadowRoot.querySelector(".summaries").setAttribute("aria-busy", String(loading));
     for (const name of SUMMARY_NAMES) {
       const id = this.config.entities[`${name}_today`];
-      const result = periodEnergy(this.history.get(id) ?? [], range, timeZone);
+      const statisticId = this.config.statistics[name] || id;
+      const statistic = this.statisticsHistory.get(statisticId);
+      const result = this.period === "today" ? periodEnergy(this.history.get(id) ?? [], range, timeZone) :
+        statistic ?? { points: [], total: null, partial: true, status: "missing", end: null };
       const entity = this.hassValue?.states[id];
       const sampleTime = Date.parse(entity?.last_reported ?? entity?.last_updated ?? "");
       const todayStart = periodRange("today", range.end, timeZone).start.getTime();
       const live = sampleTime >= todayStart && sampleTime <= range.end.getTime() ? this.latestModel?.values[`${name}Today`] ?? null : null;
       const total = this.period === "today" ? live ?? result.total : result.total;
       this.setText(`[data-summary-value="${name}"]`, formatValue(total, "kWh"));
-      this.setText(`[data-coverage="${name}"]`, !id ? "Map an energy entity" : loading ? "Loading history" : failed ? "History unavailable" : result.total === null ? "No recorded samples" : this.period === "today" ? "Daily energy" : result.partial ? `Partial · ${result.days}/${range.expectedDays} days recorded` : "Recorded total");
+      this.setText(`[data-coverage="${name}"]`, !(this.period === "today" ? id : statisticId) ? "Map an energy entity" : loading ? "Loading history" : failed ? "History unavailable" :
+        result.total === null ? this.period === "today" ? "No recorded samples" : result.status === "missing" ? "Energy statistics not configured" : "No completed statistics" :
+        this.period === "today" ? "Daily energy" : `${result.partial ? "Partial · " : ""}Statistics through ${new Intl.DateTimeFormat(undefined,{timeZone,hour:"numeric",minute:"2-digit",hour12:this.config.clock_format!=="24"}).format(new Date(result.end))}`);
+      this.chartSeries.set(name, result.points);
       const line = sparklinePath(downsample(result.points, 100), 100, 36, range);
       this.shadowRoot.querySelector(`[data-summary-path="${name}"]`).setAttribute("d", line);
       const duration = Math.max(1, range.end.getTime() - range.start.getTime());
@@ -426,6 +499,35 @@ export class PowerFloCard extends HTMLElement {
       const summary = this.shadowRoot.querySelector(`.summary[data-domain="${name}"]`);
       summary.querySelector("[data-period-start]").textContent = startLabel;
       summary.setAttribute("aria-label", `${label(name)}, ${label(this.period)}: ${formatValue(total, "kWh")}. ${result.partial ? "Partial recorded history." : "Recorded history."}`);
+    }
+    this.updateInspection();
+  }
+
+  /** Shows nearest actual observations for a shared hover/touch/keyboard time cursor. */
+  updateInspection() {
+    if (this.cursorRatio === null || !this.hassValue) {
+      this.setText(".inspection-time", "Move over a graph or use the time slider");
+      for (const name of SUMMARY_NAMES) {
+        this.shadowRoot.querySelector(`[data-cursor="${name}"]`).setAttribute("visibility", "hidden");
+        this.setText(`[data-inspection="${name}"]`, "");
+      }
+      return;
+    }
+    const timeZone = this.hassValue.config?.time_zone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const range = periodRange(this.period, new Date(), timeZone);
+    const time = range.start.getTime() + this.cursorRatio * (range.end.getTime() - range.start.getTime());
+    const formatter = new Intl.DateTimeFormat(undefined, { timeZone, month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: this.config.clock_format !== "24" });
+    this.setText(".inspection-time", `Selected ${formatter.format(new Date(time))} · nearest recorded samples`);
+    this.shadowRoot.querySelector("#history-cursor").setAttribute("aria-valuetext", formatter.format(new Date(time)));
+    for (const name of SUMMARY_NAMES) {
+      const point = nearestObservation(this.chartSeries.get(name) ?? [], time);
+      const cursor = this.shadowRoot.querySelector(`[data-cursor="${name}"]`);
+      cursor.setAttribute("visibility", point ? "visible" : "hidden");
+      cursor.removeAttribute("hidden");
+      if (!point) { this.setText(`[data-inspection="${name}"]`, "No sample"); continue; }
+      const x = (point.time - range.start.getTime()) / Math.max(1, range.end.getTime() - range.start.getTime()) * 100;
+      cursor.setAttribute("x1", String(x)); cursor.setAttribute("x2", String(x));
+      this.setText(`[data-inspection="${name}"]`, `${formatValue(point.value,"kWh",2)} · ${formatter.format(new Date(point.time))}`);
     }
   }
 

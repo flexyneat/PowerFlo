@@ -37,22 +37,22 @@ export const TOKENS = Object.freeze({
   borderWidth: "0.0625rem",
   iconSm: "1.25rem",
   iconMd: "2rem",
-  iconLg: "5rem",
+  iconLg: "7rem",
   touch: "2.75rem",
   cardMinHeight: "34rem",
   labelSize: "0.75rem",
   bodySize: "0.875rem",
-  valueSize: "clamp(1.45rem, 2.8cqi, 2.4rem)",
-  titleSize: "clamp(1.25rem, 2.6cqi, 2rem)",
+  valueSize: "clamp(1.8rem, 3.8cqi, 3.4rem)",
+  titleSize: "clamp(1.5rem, 3cqi, 2.5rem)",
   durationInstant: "100ms",
   durationMicro: "200ms",
   durationStandard: "320ms",
   easeOut: "cubic-bezier(0.22, 1, 0.36, 1)",
   easeInOut: "cubic-bezier(0.65, 0, 0.35, 1)",
   particleSize: "0.4rem",
-  lineWidth: "0.16rem",
+  lineWidth: "0.22rem",
   chartHeight: "3.1rem",
-  chartPanelHeight: "10rem",
+  chartPanelHeight: "11rem",
   chartLineWidth: "1.75",
   chartFillOpacity: "0.09",
   flowOpacity: "0.8",
@@ -65,20 +65,27 @@ export const TOKENS = Object.freeze({
   lineHeightTight: "1.1",
   lineHeightBody: "1.4",
   inverterWidth: "12rem",
-  artWidth: "8rem",
-  topologyHeight: "28rem",
+  artWidth: "22rem",
+  topologyHeight: "34rem",
   socSize: "5.5rem",
   socStrokeWidth: "5",
   forecastSize: "clamp(1rem, 1.6cqi, 1.4rem)",
   periodValueSize: "clamp(1.2rem, 2cqi, 1.8rem)",
   focusWidth: "0.125rem",
+  productInk: "oklch(0.21 0.015 240)",
+  secondaryValueSize: "clamp(1.4rem, 2.6cqi, 2.4rem)",
+  nodeTitleSize: "clamp(1rem, 1.6cqi, 1.4rem)",
+  inverterNameSize: "clamp(1.2rem, 2.2cqi, 1.9rem)",
+  inverterCaptionSize: "clamp(.7rem, .95cqi, .9rem)",
+  productCopyTop: "calc(50% - var(--pf-art-width) * 0.33)",
+  cursorWidth: "1",
 });
 
 /** Container-query breakpoints, separate from semantic CSS properties. */
 export const BREAKPOINTS = Object.freeze({ compact: "58rem", narrow: "34rem" });
 
 /** Normalized connector canvas and inverter attachment positions. */
-export const FLOW_GEOMETRY = Object.freeze({ width: 1000, height: 600, upperAnchor: 0.3, lowerAnchor: 0.7 });
+export const FLOW_GEOMETRY = Object.freeze({ width: 1000, height: 600, upperAnchor: 0.1, lowerAnchor: 0.93, leftPort: 0.35, rightPort: 0.65, sourceUpper: 0.25, sourceLower: 0.75 });
 
 /**
  * Converts tokens into CSS custom properties scoped to the card.

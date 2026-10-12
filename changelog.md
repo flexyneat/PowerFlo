@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Rebuild the visual hierarchy to follow the supplied reference: large detailed icons/readings, generated transparent inverter illustration, editable overlay labels, clearer flow routes, and a separate milestone strip.
+- Add data-quality confidence based on observed duration, count, age, and variability; cap assumed future solar/taper projections at Moderate.
+- Project 50%, 75%, 95%, and full/configured target using measured net charge, modeled solar share, a sunset/horizon cap, optional solar-power forecast, and configurable assumed high-SOC taper.
+- Replace Week/Month raw daily-max reconstruction with validated, read-only HA hourly long-term energy changes in kWh.
+- Add shared pointer/touch/native keyboard-slider chart inspection showing actual observation timestamps and no fabricated interpolation.
+- Ship the local inverter illustration alongside the JavaScript bundle and document provenance and two-file installation.
+
 - Implement net-charge Time-to-Full/Target using an independent time-weighted window and configurable charge target SOC.
 - Refine the transparent dashboard with battery SOC ring, two forecast columns, stronger hierarchy, and responsive panel-edge flow connectors.
 - Add Today, seven-local-day Week, and calendar-month-to-date Month views for all four energy summaries, with recorded cumulative totals and partial coverage disclosure.

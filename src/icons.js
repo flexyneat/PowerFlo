@@ -1,43 +1,21 @@
-/**
- * @fileoverview Original inline SVG icons used by the live topology.
- */
+/** @fileoverview Detailed inline vector topology icons, with no remote icon dependencies. */
 
-/**
- * Returns an accessible-hidden solar array icon.
- * @returns {string} Trusted static SVG markup.
- */
+/** @returns {string} Three-column solar array with panel and mounting detail. */
 export function solarIcon() {
-  return `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"><path d="M9 12h46l-5 35H14z"/><path d="M24 12 21 47M40 12l3 35M11 29h42M8 47h48M32 47v9"/></g></svg>`;
+  return `<svg viewBox="0 0 120 120" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"><path d="M24 16h24L31 96H7zM56 16h24L63 96H39zM88 16h24L95 96H71z"/><path d="M18 42h24M13 69h24M50 42h24M45 69h24M82 42h24M77 69h24M47 100h24M59 97v17"/></g></svg>`;
 }
 
-/**
- * Returns an accessible-hidden transmission tower icon.
- * @returns {string} Trusted static SVG markup.
- */
+/** @returns {string} Transmission tower with lattice and insulator detail. */
 export function gridIcon() {
-  return `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M32 7 19 57M32 7l13 50M14 57h36M20 22h24M16 33h32M23 45h18M24 22l8 8 8-8M21 34l11 9 11-9"/></g></svg>`;
+  return `<svg viewBox="0 0 120 140" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M60 9 25 128M60 9l35 119M17 128h86M49 21h22M43 43h34M37 66h46M31 92h58M46 31 26 44h68L74 31M41 54 14 69h92L79 54M26 44v11M94 44v11M14 69v11M106 69v11M43 44l34 22M77 44 43 66M37 66l46 26M83 66 37 92M31 92l58 36M89 92l-58 36"/></g></svg>`;
 }
 
-/**
- * Returns an accessible-hidden protected-load icon.
- * @returns {string} Trusted static SVG markup.
- */
+/** @returns {string} Protected home with a separately colored shield. */
 export function loadIcon() {
-  return `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m8 31 24-21 18 16M14 27v27h24M25 54V38h12"/><path d="M48 31c4 3 8 3 10 3v9c0 7-4 12-10 15-6-3-10-8-10-15v-9c2 0 6 0 10-3Z"/></g></svg>`;
+  return `<svg viewBox="0 0 120 120" aria-hidden="true"><g fill="none" stroke="var(--pf-text)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="m8 57 48-43 40 35M17 51v55h59M43 106V75h24v31M75 28V12h14v28"/></g><path d="M92 53c9 7 18 8 23 9v21c0 16-8 28-23 34-15-6-23-18-23-34V62c5-1 14-2 23-9Z" fill="none" stroke="var(--pf-load)" stroke-width="3.2" stroke-linejoin="round"/></svg>`;
 }
 
-/**
- * Returns an accessible-hidden paired Fidus-style cabinet icon.
- * @returns {string} Trusted static SVG markup.
- */
+/** @returns {string} Three-module battery cabinet with status LEDs and translucent cell windows. */
 export function batteryBankIcon() {
-  return `<svg viewBox="0 0 76 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"><path d="M6 7h28v51H6zM42 7h28v51H42zM4 58h32v4H4zM40 58h32v4H40z"/><path d="M10 15h20v9H10zM10 27h20v9H10zM10 39h20v9H10zM46 15h20v9H46zM46 27h20v9H46zM46 39h20v9H46z"/><path d="M18 11h5M54 11h5" class="status"/><path d="M34 54h8"/></g></svg>`;
-}
-
-/**
- * Returns a trusted static inverter fallback icon.
- * @returns {string} Trusted static SVG markup.
- */
-export function inverterIcon() {
-  return `<svg viewBox="0 0 80 96" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"><rect x="9" y="4" width="62" height="80" rx="5"/><rect x="29" y="34" width="22" height="15" rx="2"/><path d="M17 65h46M24 84v8M40 84v8M56 84v8"/></g></svg>`;
+  return `<svg viewBox="0 0 110 140" aria-hidden="true"><g fill="none" stroke="var(--pf-text-muted)" stroke-width="2.5" stroke-linejoin="round"><path d="M10 10h88v120H10zM17 10V5h75v5M10 49h88M10 89h88M7 131h94v5H7z"/><path d="M16 20v18M16 60v18M16 100v18M23 25h48v17H23zM23 65h48v17H23zM23 105h48v17H23z"/></g><g fill="currentColor" fill-opacity=".65"><rect x="25" y="27" width="44" height="13" rx="2"/><rect x="25" y="67" width="44" height="13" rx="2"/><rect x="25" y="107" width="44" height="13" rx="2"/></g><g stroke="var(--pf-live)" stroke-width="2"><path d="M81 26h8M81 66h8M81 106h8"/></g></svg>`;
 }

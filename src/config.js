@@ -17,6 +17,10 @@
  * @property {number} battery_charge_target_soc Time-to-full/target SOC, percent.
  * @property {number} runtime_window_minutes Time-weighted averaging window.
  * @property {number} runtime_max_sample_age_seconds Maximum power sample age and gap.
+ * @property {number} charge_taper_start_soc Assumed future taper starting SOC.
+ * @property {number} charge_taper_floor_ratio Assumed charge ratio at full SOC.
+ * @property {number} solar_projection_hours Assumed solar availability horizon.
+ * @property {Record<string, string>} statistics Optional long-term energy statistic IDs.
  * @property {string} inverter_image Validated local or data image URL.
  * @property {"12" | "24"} clock_format Clock presentation.
  * @property {number} flow_threshold_w Flow activation threshold.
@@ -38,6 +42,10 @@ export const DEFAULT_CONFIG = Object.freeze({
   battery_charge_target_soc: 100,
   runtime_window_minutes: 5,
   runtime_max_sample_age_seconds: 60,
+  charge_taper_start_soc: 90,
+  charge_taper_floor_ratio: 0.2,
+  solar_projection_hours: 4,
+  statistics: Object.freeze({ solar: "", grid: "", load: "", battery: "" }),
   inverter_image: "",
   clock_format: "12",
   flow_threshold_w: 40,
@@ -64,6 +72,7 @@ export const DEFAULT_CONFIG = Object.freeze({
     grid_today: "",
     load_today: "",
     battery_today: "",
+    solar_forecast_power: "",
   }),
 });
 
@@ -125,6 +134,10 @@ export function normalizeConfig(input = {}) {
     battery_charge_target_soc: finiteInRange(input.battery_charge_target_soc, DEFAULT_CONFIG.battery_charge_target_soc, 1, 100),
     runtime_window_minutes: finiteInRange(input.runtime_window_minutes, DEFAULT_CONFIG.runtime_window_minutes, 1, 60),
     runtime_max_sample_age_seconds: finiteInRange(input.runtime_max_sample_age_seconds, DEFAULT_CONFIG.runtime_max_sample_age_seconds, 5, 300),
+    charge_taper_start_soc: finiteInRange(input.charge_taper_start_soc, DEFAULT_CONFIG.charge_taper_start_soc, 50, 99),
+    charge_taper_floor_ratio: finiteInRange(input.charge_taper_floor_ratio, DEFAULT_CONFIG.charge_taper_floor_ratio, 0.05, 1),
+    solar_projection_hours: finiteInRange(input.solar_projection_hours, DEFAULT_CONFIG.solar_projection_hours, 0, 24),
+    statistics: Object.fromEntries(Object.keys(DEFAULT_CONFIG.statistics).map(key => [key, String(input.statistics?.[key] ?? "").trim().slice(0, 300)])),
     inverter_image: safeImageSource(input.inverter_image ?? DEFAULT_CONFIG.inverter_image),
     clock_format: input.clock_format === "24" ? "24" : "12",
     flow_threshold_w: threshold,

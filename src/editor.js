@@ -88,6 +88,10 @@ export class PowerFloEditor extends HTMLElement {
     behavior.append(this.createField("battery_charge_target_soc", "Charge estimate target SOC (%)", "number"));
     behavior.append(this.createField("runtime_window_minutes", "Runtime averaging window (minutes)", "number"));
     behavior.append(this.createField("runtime_max_sample_age_seconds", "Runtime maximum sample age (seconds)", "number"));
+    behavior.append(this.createField("charge_taper_start_soc", "Assumed taper start SOC (%)", "number"));
+    behavior.append(this.createField("charge_taper_floor_ratio", "Assumed full-SOC charge ratio", "number"));
+    behavior.append(this.createField("solar_projection_hours", "Solar projection horizon (hours)", "number"));
+    for (const key of Object.keys(this.config.statistics)) entities.append(this.createField(`statistics.${key}`, `${key} energy statistic ID (optional)`, "text"));
     const required = new Set(["freshness", "inverter_status", "grid_connected", "solar_power", "battery_soc", "battery_power", "grid_power", "load_power"]);
     for (const key of Object.keys(this.config.entities)) entities.append(this.createField(`entities.${key}`, `${key.replaceAll("_", " ")}${required.has(key) ? " *" : ""}`, "text"));
     root.addEventListener("change", (event) => this.handleChange(event));
@@ -181,6 +185,9 @@ export class PowerFloEditor extends HTMLElement {
       } else if (path.startsWith("entities.")) {
         const key = path.slice("entities.".length);
         this.config = normalizeConfig({ ...this.config, entities: { ...this.config.entities, [key]: value } });
+      } else if (path.startsWith("statistics.")) {
+        const key = path.slice("statistics.".length);
+        this.config = normalizeConfig({ ...this.config, statistics: { ...this.config.statistics, [key]: value } });
       } else {
         this.config = normalizeConfig({ ...this.config, [path]: value });
       }

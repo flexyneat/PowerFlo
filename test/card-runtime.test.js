@@ -30,7 +30,7 @@ afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe("battery panel runtime", () => {
   it("displays time to full and target reached, with configurable charge target", () => {
-    const card = fixture({ battery_positive: "charge", battery_charge_target_soc: 95 });
+    const card = fixture({ battery_positive: "charge", battery_charge_target_soc: 95, charge_taper_floor_ratio: 1 });
     card.hassValue.states[card.config.entities.battery_power].state = "2000";
     card.updateModel();
     expect(card.shadowRoot.querySelector('[data-meta="battery-charge"]').textContent).toBe("Collecting charge data");
@@ -81,18 +81,22 @@ describe("history period interactions", () => {
     const card = fixture();
     const resolveRequests = [];
     card.hassValue.callApi = vi.fn(() => new Promise(resolve => resolveRequests.push(resolve)));
+    card.hassValue.callWS = vi.fn(message => message.type === "recorder/get_statistics_metadata"
+      ? Promise.resolve([{ statistic_id: "sensor.solar_today", has_sum: true, unit_of_measurement: "kWh" }])
+      : new Promise(resolve => resolveRequests.push(resolve)));
     const first = card.loadHistoryIfNeeded();
     card.selectPeriod("week");
     card.selectPeriod("month");
+    await Promise.resolve(); await Promise.resolve();
     expect(card.shadowRoot.querySelector('[data-period="month"]').getAttribute("aria-pressed")).toBe("true");
     expect(resolveRequests).toHaveLength(3);
-    resolveRequests[2]([[{ entity_id: "sensor.solar_today", state: "3", last_changed: "2026-10-12T09:00:00Z" }]]);
+    resolveRequests[2]({ "sensor.solar_today": [{ start: Date.parse("2026-10-12T08:00:00Z"), end: Date.parse("2026-10-12T09:00:00Z"), change: 3 }] });
     await Promise.resolve(); await Promise.resolve();
-    expect(card.history.get("sensor.solar_today")[0].value).toBe(3);
-    resolveRequests[1]([[{ entity_id: "sensor.solar_today", state: "999", last_changed: "2026-10-12T09:00:00Z" }]]);
+    expect(card.statisticsHistory.get("sensor.solar_today").total).toBe(3);
+    resolveRequests[1]({ "sensor.solar_today": [{ start: Date.parse("2026-10-12T08:00:00Z"), end: Date.parse("2026-10-12T09:00:00Z"), change: 999 }] });
     resolveRequests[0]([]);
     await first;
-    expect(card.history.get("sensor.solar_today")[0].value).toBe(3);
+    expect(card.statisticsHistory.get("sensor.solar_today").total).toBe(3);
     expect(card.period).toBe("month");
   });
   it("shows a recoverable history failure and reuses cached period responses", async () => {

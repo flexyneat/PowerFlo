@@ -39,9 +39,10 @@ export class FlowAnimator {
    * @param {number | null} watts Absolute live power.
    */
   setFlow(direction, watts) {
+    const changed = direction !== this.direction;
     this.direction = direction;
     this.duration = durationForPower(watts);
-    this.startedAt = performance.now();
+    if (changed) this.startedAt = performance.now();
     this.path.dataset.direction = direction;
     if (direction === "stopped" || this.reducedMotion || !this.visible) {
       this.stop();
