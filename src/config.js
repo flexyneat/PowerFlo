@@ -14,6 +14,7 @@
  * @property {number} inverter_capacity_kw Rated inverter power.
  * @property {number} battery_capacity_kwh Installed battery capacity.
  * @property {number} battery_reserve_soc Runtime estimate's reserve SOC, percent.
+ * @property {number} battery_charge_target_soc Time-to-full/target SOC, percent.
  * @property {number} runtime_window_minutes Time-weighted averaging window.
  * @property {number} runtime_max_sample_age_seconds Maximum power sample age and gap.
  * @property {string} inverter_image Validated local or data image URL.
@@ -34,6 +35,7 @@ export const DEFAULT_CONFIG = Object.freeze({
   inverter_capacity_kw: 12,
   battery_capacity_kwh: 32.14,
   battery_reserve_soc: 20,
+  battery_charge_target_soc: 100,
   runtime_window_minutes: 5,
   runtime_max_sample_age_seconds: 60,
   inverter_image: "",
@@ -120,6 +122,7 @@ export function normalizeConfig(input = {}) {
     inverter_capacity_kw: finiteInRange(input.inverter_capacity_kw, DEFAULT_CONFIG.inverter_capacity_kw, 0.1, 1000),
     battery_capacity_kwh: finiteInRange(input.battery_capacity_kwh, DEFAULT_CONFIG.battery_capacity_kwh, 0.1, 10000),
     battery_reserve_soc: finiteInRange(input.battery_reserve_soc, DEFAULT_CONFIG.battery_reserve_soc, 0, 100),
+    battery_charge_target_soc: finiteInRange(input.battery_charge_target_soc, DEFAULT_CONFIG.battery_charge_target_soc, 1, 100),
     runtime_window_minutes: finiteInRange(input.runtime_window_minutes, DEFAULT_CONFIG.runtime_window_minutes, 1, 60),
     runtime_max_sample_age_seconds: finiteInRange(input.runtime_max_sample_age_seconds, DEFAULT_CONFIG.runtime_max_sample_age_seconds, 5, 300),
     inverter_image: safeImageSource(input.inverter_image ?? DEFAULT_CONFIG.inverter_image),

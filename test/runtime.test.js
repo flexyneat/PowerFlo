@@ -1,6 +1,6 @@
 /** @fileoverview Tests for time-weighted discharge runtime and invalidation. */
 import { describe, expect, it } from "vitest";
-import { BatteryRuntimeEstimator, formatRuntime } from "../src/runtime.js";
+import { BatteryChargeEstimator, BatteryRuntimeEstimator, formatRuntime } from "../src/runtime.js";
 
 /**
  * Builds a fresh runtime observation in the battery's normalized domain.
@@ -74,5 +74,34 @@ describe("formatRuntime", () => {
     expect(formatRuntime(0.001)).toBe("Less than 1 min");
     expect(formatRuntime(1)).toBe("1 h 0 min");
     expect(formatRuntime(Number.POSITIVE_INFINITY)).toBe("Unavailable");
+  });
+});
+
+describe("BatteryChargeEstimator", () => {
+  it("estimates the SOC gap using net charging power without double efficiency correction", () => {
+    const estimator = new BatteryChargeEstimator();
+    expect(estimator.observe(observation(0, 2000, { mode: "charging" })).status).toBe("warming");
+    expect(estimator.observe(observation(30_000, 2000, { mode: "charging" })).hours).toBeCloseTo(2.4105);
+  });
+  it("honors a lower target and extends time when the observed charge rate tapers", () => {
+    const estimator = new BatteryChargeEstimator();
+    estimator.observe(observation(0, 2000, { mode: "charging", targetSoc: 95 }));
+    estimator.observe(observation(30_000, 1000, { mode: "charging", targetSoc: 95 }));
+    const result = estimator.observe(observation(60_000, 1000, { mode: "charging", targetSoc: 95 }));
+    expect(result.averageWatts).toBe(1500);
+    expect(result.hours).toBeCloseTo(3.214 / 1.5);
+  });
+  it("reports target reached only from valid SOC and rejects stale full reports", () => {
+    const estimator = new BatteryChargeEstimator();
+    expect(estimator.observe(observation(0, 0, { mode: "static", soc: 100 })).status).toBe("target");
+    expect(estimator.observe(observation(0, 0, { mode: "static", soc: 100, fresh: false })).status).toBe("unavailable");
+    expect(estimator.observe(observation(0, 0, { mode: "static", soc: 100, targetSoc: 101 })).status).toBe("unavailable");
+  });
+  it("does not forecast while discharging or paused and resets between sessions", () => {
+    const estimator = new BatteryChargeEstimator();
+    estimator.observe(observation(0, 2000, { mode: "charging" }));
+    expect(estimator.observe(observation(30_000)).status).toBe("discharging");
+    expect(estimator.observe(observation(40_000, 0, { mode: "static" })).status).toBe("static");
+    expect(estimator.observe(observation(50_000, 2000, { mode: "charging" })).status).toBe("warming");
   });
 });

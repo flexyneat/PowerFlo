@@ -29,6 +29,20 @@ beforeEach(() => {
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe("battery panel runtime", () => {
+  it("displays time to full and target reached, with configurable charge target", () => {
+    const card = fixture({ battery_positive: "charge", battery_charge_target_soc: 95 });
+    card.hassValue.states[card.config.entities.battery_power].state = "2000";
+    card.updateModel();
+    expect(card.shadowRoot.querySelector('[data-meta="battery-charge"]').textContent).toBe("Collecting charge data");
+    vi.setSystemTime(new Date("2026-10-12T10:00:30Z"));
+    card.hassValue.states[card.config.entities.battery_power].last_updated = new Date().toISOString();
+    card.updateModel();
+    expect(card.shadowRoot.querySelector('[data-meta="battery-charge"]').textContent).toBe("1 h 36 min");
+    expect(card.shadowRoot.querySelector('[data-meta="charge-label"]').textContent).toBe("Time to 95%");
+    card.hassValue.states[card.config.entities.battery_soc].state = "95";
+    card.updateModel();
+    expect(card.shadowRoot.querySelector('[data-meta="battery-charge"]').textContent).toBe("Target reached");
+  });
   it("shows warmup, duration and reserve without changing battery status", () => {
     const card = fixture();
     card.updateModel();
@@ -52,5 +66,46 @@ describe("battery panel runtime", () => {
     vi.setSystemTime(new Date("2026-10-12T10:01:01Z"));
     card.updateModel();
     expect(card.shadowRoot.querySelector('[data-meta="battery-runtime"]').textContent).toContain("Unavailable");
+  });
+});
+
+describe("history period interactions", () => {
+  it("does not carry yesterday's retained daily counter into a new day", () => {
+    const card = fixture();
+    card.hassValue.states[card.config.entities.solar_today] = { state: "99", last_updated: "2026-10-11T20:00:00Z" };
+    card.updateModel();
+    expect(card.history.has(card.config.entities.solar_today)).toBe(false);
+    expect(card.shadowRoot.querySelector('[data-summary-value="solar"]').textContent).toBe("—");
+  });
+  it("uses accessible selected buttons and ignores out-of-order history responses", async () => {
+    const card = fixture();
+    const resolveRequests = [];
+    card.hassValue.callApi = vi.fn(() => new Promise(resolve => resolveRequests.push(resolve)));
+    const first = card.loadHistoryIfNeeded();
+    card.selectPeriod("week");
+    card.selectPeriod("month");
+    expect(card.shadowRoot.querySelector('[data-period="month"]').getAttribute("aria-pressed")).toBe("true");
+    expect(resolveRequests).toHaveLength(3);
+    resolveRequests[2]([[{ entity_id: "sensor.solar_today", state: "3", last_changed: "2026-10-12T09:00:00Z" }]]);
+    await Promise.resolve(); await Promise.resolve();
+    expect(card.history.get("sensor.solar_today")[0].value).toBe(3);
+    resolveRequests[1]([[{ entity_id: "sensor.solar_today", state: "999", last_changed: "2026-10-12T09:00:00Z" }]]);
+    resolveRequests[0]([]);
+    await first;
+    expect(card.history.get("sensor.solar_today")[0].value).toBe(3);
+    expect(card.period).toBe("month");
+  });
+  it("shows a recoverable history failure and reuses cached period responses", async () => {
+    const card = fixture();
+    card.hassValue.callApi = vi.fn().mockRejectedValueOnce(new Error("Recorder offline")).mockResolvedValue([]);
+    await card.loadHistoryIfNeeded();
+    expect(card.historyState.status).toBe("error");
+    expect(card.shadowRoot.querySelector(".retry").hidden).toBe(false);
+    await card.loadHistoryIfNeeded(true);
+    expect(card.historyState.status).toBe("ready");
+    card.historyKey = "";
+    await card.loadHistoryIfNeeded();
+    expect(card.hassValue.callApi).toHaveBeenCalledTimes(2);
+    expect(card.shadowRoot.querySelector(".retry").hidden).toBe(true);
   });
 });

@@ -52,7 +52,33 @@ export const TOKENS = Object.freeze({
   particleSize: "0.4rem",
   lineWidth: "0.16rem",
   chartHeight: "3.1rem",
+  chartPanelHeight: "10rem",
+  chartLineWidth: "1.75",
+  chartFillOpacity: "0.09",
+  flowOpacity: "0.8",
+  stoppedOpacity: "0.25",
+  headingTracking: "-0.025em",
+  microTracking: "0.06em",
+  weightRegular: "450",
+  weightMedium: "600",
+  weightStrong: "750",
+  lineHeightTight: "1.1",
+  lineHeightBody: "1.4",
+  inverterWidth: "12rem",
+  artWidth: "8rem",
+  topologyHeight: "28rem",
+  socSize: "5.5rem",
+  socStrokeWidth: "5",
+  forecastSize: "clamp(1rem, 1.6cqi, 1.4rem)",
+  periodValueSize: "clamp(1.2rem, 2cqi, 1.8rem)",
+  focusWidth: "0.125rem",
 });
+
+/** Container-query breakpoints, separate from semantic CSS properties. */
+export const BREAKPOINTS = Object.freeze({ compact: "58rem", narrow: "34rem" });
+
+/** Normalized connector canvas and inverter attachment positions. */
+export const FLOW_GEOMETRY = Object.freeze({ width: 1000, height: 600, upperAnchor: 0.3, lowerAnchor: 0.7 });
 
 /**
  * Converts tokens into CSS custom properties scoped to the card.

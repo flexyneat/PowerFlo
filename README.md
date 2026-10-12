@@ -10,7 +10,7 @@ PowerFlo is a read-only, live power-flow card for Home Assistant. Its configurab
 
 ## Current status
 
-PowerFlo is an early implementation. The state engine, reversible flow model, Recorder-history utilities, visual editor, responsive card shell, and unit tests exist. Live Deye commissioning, accessibility browser testing, and a tagged HACS release remain open.
+PowerFlo is an early implementation. The state engine, reversible flow model, charge/discharge estimates, Today/Week/Month history, visual editor, responsive card shell, and unit tests exist. Live Deye commissioning and a tagged HACS release remain open. Simulated browser checks cover period switching, forecast labels, transparent themes, keyboard focus, and narrow layouts; these do not replace live Home Assistant validation.
 
 ## Safety boundary
 
@@ -20,10 +20,11 @@ PowerFlo reads Home Assistant entities. It does not connect to Modbus, call Home
 
 - Dynamic `Static`, `Charging`, and `Discharging` battery status.
 - Smoothed runtime to a configurable reserve SOC, shown in the battery panel.
+- Smoothed Time-to-Full or Time-to-Target from net charging power, shown alongside runtime.
 - Configurable battery and grid sign conventions.
 - Reversible solar, grid, battery, and load arrows driven by current power state.
 - Freshness-gated transform-only flow particles.
-- Solar, Grid, Load, and Battery Today histories from Home Assistant Recorder.
+- Solar, Grid, Load, and Battery energy histories with Today, Week, and Month views.
 - Editable title, inverter identity, ratings, clock format, and safe local raster image upload.
 - 12-column Sections compatibility through `getGridOptions()`.
 - Dark/light theme variables, narrow-card layout, and reduced-motion behavior.
@@ -239,6 +240,7 @@ Boolean mappings accept `on`, `true`, `connected`, `1`, `yes`, or `fresh` as tru
 | `flow_threshold_w` | `40` | Activation threshold, 1–5,000 W. |
 | `flow_release_w` | `20` | Battery/grid release threshold, between 0 and the activation threshold. |
 | `battery_reserve_soc` | `20` | Runtime stopping point, 0–100%. Does not change inverter settings. |
+| `battery_charge_target_soc` | `100` | Time-to-Full target, 1–100%; lower targets change the displayed label. |
 | `runtime_window_minutes` | `5` | Discharge averaging window, 1–60 minutes. |
 | `runtime_max_sample_age_seconds` | `60` | Maximum power sample age/gap, 5–300 seconds; choose to suit gateway polling. |
 
@@ -264,7 +266,7 @@ Update `battery_capacity_kwh` when installed capacity changes. Capacity is manua
 
 ### Responsive layouts
 
-The card implements both masonry sizing and Sections grid sizing. Use a wide card/section for the full topology. Below **50 rem of card-container width**, connectors and particles are hidden and nodes rearrange; below **32 rem**, nodes stack. Narrow layouts still display live values and battery/grid status, but currently do not show directional arrows.
+The card implements both masonry sizing and Sections grid sizing. Use a wide card/section for the full topology. Below **58 rem of card-container width**, connectors and particles are hidden and nodes rearrange; below **34 rem**, nodes stack. Narrow layouts still display live values, both battery forecasts, and period selectors, but currently do not show directional arrows. On wide layouts, connector endpoints are measured from actual panel edges so arrows stay aligned after layout changes.
 
 ## Battery runtime estimate
 
@@ -292,37 +294,56 @@ Charging, static operation, stale data, configuration changes, and excessive sam
 
 Edit reserve and averaging settings in the visual editor under **Flow behavior**, or use the YAML keys in the configuration table. Choose reserve for the meaning you want to show; match it to an actual off-grid limit or a higher preferred margin. The card never writes the inverter's shutdown/TOU configuration.
 
-### Formula design: time till battery full
+## Time-to-Full
 
-This formula is documented for the next feature; time-to-full is **not yet displayed or calculated by the card**.
+The battery panel now shows **Time to full**, or **Time to 95%** when a lower `battery_charge_target_soc` is configured. It uses an independent time-weighted net-charge window with the same warmup, timestamp freshness, and averaging settings as runtime. It is labelled **At recent charge rate**, not a guaranteed completion time.
 
-For a first estimate while charging, use positive **battery-side net charging power**, normalized using `battery_positive`, and a time-weighted charging average separate from the discharge window:
+While charging, the estimator uses **battery-side net charging power**, normalized using `battery_positive`, and a time-weighted charging average separate from the discharge window:
 
 ```text
 Energy needed (kWh) = effective_capacity_kWh × max(target_SOC − SOC, 0) / 100
 Time to target (h)  = energy_needed_kWh / (average_net_charge_W / 1000)
 ```
 
-For “full,” the default target would be 100%. A configurable lower target could instead be labelled “Time to 95%,” for example. At 85% SOC, 32.14 kWh capacity, and 2 kW net charging, the constant-rate estimate to 100% is **2 h 24 min**. This assumes the same charging rate continues and is not a forecast of taper completion.
+The default target is 100%. At 85% SOC, 32.14 kWh capacity, and 2 kW net charging, the constant-rate estimate to 100% is **2 h 24 min**. This assumes the same charging rate continues and is not a forecast of taper completion. A lower target is display-only and does not configure the inverter's charging target.
 
 Net battery input power should not be confused with gross PV generation or grid import: household demand consumes part of those inputs. If using net battery-side power, avoid multiplying by inverter conversion efficiency again. A calibrated battery energy-retention factor could be added if measurements show a systematic charge-side bias.
 
-Near full, BMS current limits, cell balancing, and charge taper can extend the time. A more accurate later model can learn battery-side charging power by SOC band during comparable continuous charging sessions:
+Near full, BMS current limits, cell balancing, and charge taper can extend the time. The panel adds **Taper may extend this** from 90% SOC while a charge estimate is available. The rolling average follows observed taper, but does not predict future taper. A more accurate later model can learn battery-side charging power by SOC band during comparable continuous charging sessions:
 
 ```text
 Time to target (h) ≈ Σ [effective_capacity_kWh × SOC_band_width / 100
                         ÷ expected_net_charge_kW_in_that_band]
 ```
 
-Equivalently, integrate `capacity_kWh / 100 × dSOC / expected_charge_kW(SOC)` from current SOC to target. Future implementation should exclude stale data and interruptions, separate solar-limited sessions from battery-limited taper, and show “At recent charge rate” until sufficient taper history exists. Zero charging power, paused charging, unmet target limits, or missing data should produce a state label rather than infinity. Only confirmed target SOC should be labelled “Target reached.”
+Equivalently, integrate `capacity_kWh / 100 × dSOC / expected_charge_kW(SOC)` from current SOC to target. This learned taper extension is not implemented. Current states are **Collecting charge data**, **Not charging**, **Target reached** (reported SOC at/above target), or **Unavailable**. Discharging, static operation, stale data, and telemetry gaps reset the charge window. No infinity is displayed when charge rate is zero.
 
 ## Recorder history behavior
 
-PowerFlo requests Recorder history from midnight in Home Assistant's timezone for the four `*_today` entities, then appends incoming live values. These lines show **daily energy counter history**, not instantaneous power curves. Ensure the mapped sensors are not excluded from [Recorder](https://www.home-assistant.io/integrations/recorder/).
+Use the **Today / Week / Month** buttons to change all four summary graphs together. The live topology and forecasts remain current, independent of the selected period.
 
-At least two numeric points are needed for a line. A missing history response does not prevent the latest total from displaying. Recorder is queried on initial load and when the daily/entity key changes; it is not continuously re-fetched. Midnight rollover is triggered by subsequent Home Assistant state updates.
+| View | Range in Home Assistant's timezone | Displayed energy |
+|---|---|---|
+| Today | Local midnight to now | Current daily energy counter, with its recorded trend. |
+| Week | Six preceding local days plus today | Sum of observed daily maxima across the seven-day range. |
+| Month | First local day of the current month to now | Sum of observed daily maxima for the month to date. |
 
-The current graph scales to available timestamps and does not invent a midnight sample when history begins later, despite the `12 AM` label. Fixed midnight-axis rendering and live midnight-rollover commissioning remain outstanding.
+The graphs show cumulative energy for the selected period, reconstructed from the existing `*_today` sensors. No new energy entities are required. They are energy histories, not instantaneous power, SOC, or discrete inverter-status histories. Daily maxima prevent a midnight counter reset from causing a drop or double-counting each day's accumulated readings.
+
+Week/Month values are **Recorded totals**, not audited meter totals: missing samples near a day's end, unexpected midday resets, and retention gaps can undercount energy. Missing days are explicitly marked **Partial · N/M days recorded**; no history is invented. Today/Week/Month use fixed time-axis boundaries; a later first recorded sample appears later on the axis rather than being stretched to midnight.
+
+Ensure the four daily-energy sensors are not excluded from [Recorder](https://www.home-assistant.io/integrations/recorder/). The raw history endpoint does not recover purged records from long-term statistics. To retain a complete current month, consider merging this into your existing Recorder configuration, accounting for database size:
+
+```yaml
+recorder:
+  purge_keep_days: 35
+```
+
+This does not restore already-purged data and PowerFlo does not change your Recorder settings. See the [Recorder retention documentation](https://www.home-assistant.io/integrations/recorder/#purge_keep_days).
+
+At least two numeric points are needed for a line. History is fetched on period selection and cached for up to three period/day keys, with stale requests ignored when selections change quickly. Live counter values extend the selected history. The card checks date rollover every minute as well as on state updates. It waits for a current-day counter timestamp before appending live data after midnight, so yesterday's retained counter cannot contaminate the new day.
+
+Loading is announced, history failures expose a **Retry history** button, and unmapped sensors display **Map an energy entity**. Live Home Assistant history performance and midnight rollover remain commissioning tasks.
 
 ## Updates and removal
 
@@ -341,7 +362,9 @@ To remove PowerFlo, remove its cards, resource registration, installed JavaScrip
 | Battery or grid direction is reversed | Correct `battery_positive` or `grid_positive` using real signed readings. |
 | Status unavailable or motion paused | Check freshness, power sensor availability, thresholds, reduced motion, and whether the card/tab is visible. |
 | Values differ by a factor of 1,000 | Inputs must be W and kWh. Convert kW/Wh upstream. |
-| No arrows on a phone | The current layout hides connectors below 50 rem. Use a wider card for topology. |
+| No arrows on a phone | The current layout hides connectors below 58 rem. Use a wider card for topology. |
+| Week/Month reports partial coverage | Check Recorder retention and sensor exclusions. Purged history cannot be restored by the card. |
+| Time-to-Full is unavailable | Check net charge power, SOC, freshness and sensor timestamps; allow 30 seconds after charging starts. |
 | Today total works but no graph | Check optional daily mappings, Recorder history, and availability of two numeric points. |
 | Image missing | Check supported type, size, dimensions, local URL, and file existence. |
 | Background visible except behind artwork | The selected image may be opaque; use transparent PNG/WebP. |

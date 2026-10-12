@@ -85,6 +85,7 @@ export class PowerFloEditor extends HTMLElement {
     behavior.append(this.createField("flow_threshold_w", "Flow starts above (W)", "number"));
     behavior.append(this.createField("flow_release_w", "Flow stops below (W)", "number"));
     behavior.append(this.createField("battery_reserve_soc", "Runtime reserve SOC (%)", "number"));
+    behavior.append(this.createField("battery_charge_target_soc", "Charge estimate target SOC (%)", "number"));
     behavior.append(this.createField("runtime_window_minutes", "Runtime averaging window (minutes)", "number"));
     behavior.append(this.createField("runtime_max_sample_age_seconds", "Runtime maximum sample age (seconds)", "number"));
     const required = new Set(["freshness", "inverter_status", "grid_connected", "solar_power", "battery_soc", "battery_power", "grid_power", "load_power"]);

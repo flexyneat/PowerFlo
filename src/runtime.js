@@ -5,14 +5,15 @@ const MINIMUM_COVERAGE_MS = 30_000;
 
 /**
  * @typedef {{status: "ready", hours: number, averageWatts: number, coverageMs: number} |
- * {status: "warming" | "charging" | "static" | "unavailable" | "reserve"}} RuntimeEstimate
+ * {status: "warming" | "charging" | "discharging" | "static" | "unavailable" | "reserve" | "target"}} RuntimeEstimate
  */
 
 /** Rolling estimator for a continuous, fresh discharge session. */
 export class BatteryRuntimeEstimator {
   /** Creates an empty sampling window. */
-  constructor() {
+  constructor(activeMode = "discharging") {
     this.samples = [];
+    this.activeMode = activeMode;
   }
 
   /** Discards history when the discharge session or configuration changes. */
@@ -30,32 +31,38 @@ export class BatteryRuntimeEstimator {
    * @param {string} input.mode Derived battery mode.
    * @param {boolean} input.fresh Whether the gateway reports fresh telemetry.
    * @param {number} input.capacityKwh Installed effective capacity in kWh.
-   * @param {number} input.reserveSoc Estimate stopping point, percent.
+   * @param {number} input.reserveSoc Discharge stopping point, percent.
+   * @param {number} [input.targetSoc] Charging target, percent.
    * @param {number} input.windowMs Rolling averaging window.
    * @param {number} input.maxAgeMs Maximum allowed sample age or observation gap.
    * @returns {RuntimeEstimate} Explicit estimate lifecycle state.
    */
-  observe({ now, sampleTime, power, soc, mode, fresh, capacityKwh, reserveSoc, windowMs, maxAgeMs }) {
+  observe({ now, sampleTime, power, soc, mode, fresh, capacityKwh, reserveSoc, targetSoc = 100, windowMs, maxAgeMs }) {
+    const target = this.activeMode === "charging" ? targetSoc : reserveSoc;
     const valid = fresh && Number.isFinite(now) && Number.isFinite(sampleTime)
       && sampleTime <= now && now - sampleTime <= maxAgeMs
       && Number.isFinite(soc) && soc >= 0 && soc <= 100
       && Number.isFinite(power) && Number.isFinite(capacityKwh) && capacityKwh > 0
-      && Number.isFinite(reserveSoc) && reserveSoc >= 0 && reserveSoc <= 100
+      && Number.isFinite(target) && target >= 0 && target <= 100
       && Number.isFinite(windowMs) && windowMs >= MINIMUM_COVERAGE_MS
       && Number.isFinite(maxAgeMs) && maxAgeMs > 0;
     if (!valid || mode === "unavailable") {
       this.reset();
       return { status: "unavailable" };
     }
-    if (mode === "charging" || mode === "static") {
+    if (this.activeMode === "charging" && soc >= target) {
+      this.reset();
+      return { status: "target" };
+    }
+    if ((mode === "charging" || mode === "discharging" || mode === "static") && mode !== this.activeMode) {
       this.reset();
       return { status: mode };
     }
-    if (mode !== "discharging" || power <= 0) {
+    if (mode !== this.activeMode || power <= 0) {
       this.reset();
       return { status: "unavailable" };
     }
-    if (soc <= reserveSoc) {
+    if (this.activeMode === "discharging" && soc <= target) {
       this.reset();
       return { status: "reserve" };
     }
@@ -81,8 +88,16 @@ export class BatteryRuntimeEstimator {
     }
     if (coverageMs < MINIMUM_COVERAGE_MS) return { status: "warming" };
     const averageWatts = weightedWattsMs / coverageMs;
-    const remainingKwh = capacityKwh * (soc - reserveSoc) / 100;
+    const remainingKwh = capacityKwh * Math.abs(soc - target) / 100;
     return { status: "ready", hours: remainingKwh / (averageWatts / 1000), averageWatts, coverageMs };
+  }
+}
+
+/** Rolling net-charge estimate to a configured SOC target, without assuming a fixed taper curve. */
+export class BatteryChargeEstimator extends BatteryRuntimeEstimator {
+  /** Creates an independent charging session and smoothing window. */
+  constructor() {
+    super("charging");
   }
 }
 

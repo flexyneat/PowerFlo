@@ -1,54 +1,74 @@
 <!doctype html>
+<!-- PowerFlo development fixture: all readings and histories are explicitly simulated. -->
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>PowerFlo development fixture</title>
-    <style>
-      body { margin: 0; padding: 24px; background: #09131f; color: #eef5ff; font-family: system-ui, sans-serif; }
-      powerflo-card { display: block; max-width: 1500px; margin: auto; }
-    </style>
-  </head>
-  <body>
-    <powerflo-card></powerflo-card>
-    <script type="module">
-      import "../dist/powerflo-card.js";
-
-      const card = document.querySelector("powerflo-card");
-      const entities = {
-        freshness: "binary_sensor.flow_fresh",
-        inverter_status: "sensor.inverter_status",
-        grid_connected: "binary_sensor.grid_connected",
-        solar_power: "sensor.solar_power",
-        pv1_power: "sensor.pv1_power",
-        pv2_power: "sensor.pv2_power",
-        pv3_power: "sensor.pv3_power",
-        battery_soc: "sensor.battery_soc",
-        battery_power: "sensor.battery_power",
-        battery_voltage: "sensor.battery_voltage",
-        battery_temperature: "sensor.battery_temperature",
-        grid_power: "sensor.grid_power",
-        grid_voltage: "sensor.grid_voltage",
-        grid_frequency: "sensor.grid_frequency",
-        load_power: "sensor.load_power",
-        solar_today: "sensor.solar_today",
-        grid_today: "sensor.grid_today",
-        load_today: "sensor.load_today",
-        battery_today: "sensor.battery_today",
-      };
-      card.setConfig({ entities });
-      const state = (value) => ({ state: String(value), attributes: {}, last_updated: new Date().toISOString() });
-      card.hass = {
-        config: { time_zone: "Africa/Lagos" },
-        states: {
-          [entities.freshness]: state("on"), [entities.inverter_status]: state("normal"), [entities.grid_connected]: state("on"),
-          [entities.solar_power]: state(4820), [entities.pv1_power]: state(1620), [entities.pv2_power]: state(1580), [entities.pv3_power]: state(1620),
-          [entities.battery_soc]: state(85), [entities.battery_power]: state(512), [entities.battery_voltage]: state(53.4), [entities.battery_temperature]: state(32.4),
-          [entities.grid_power]: state(240), [entities.grid_voltage]: state(230.4), [entities.grid_frequency]: state(50), [entities.load_power]: state(450),
-          [entities.solar_today]: state(12.4), [entities.grid_today]: state(3.1), [entities.load_today]: state(10.2), [entities.battery_today]: state(1.8),
-        },
-        callApi: async () => [],
-      };
-    </script>
-  </body>
-</html>
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>PowerFlo · simulated preview</title>
+  <style>
+    :root{color-scheme:dark;--canvas:#111c28;--primary-text-color:#edf3f8;--secondary-text-color:#aebcc9;--divider-color:#344454;--ha-card-border-color:#526778}
+    :root[data-theme="light"]{color-scheme:light;--canvas:#eef2f5;--primary-text-color:#1c2a37;--secondary-text-color:#4f6070;--divider-color:#bac6d1;--ha-card-border-color:#899dac}
+    body{margin:0;padding:24px;background:var(--canvas);color:var(--primary-text-color);font-family:system-ui,sans-serif}main{max-width:1440px;margin:auto}.fixture-controls{display:flex;align-items:center;flex-wrap:wrap;gap:16px;margin-bottom:24px;font-size:14px}.fixture-controls span{margin-right:auto;color:var(--secondary-text-color)}button,select{min-height:44px;padding:8px 16px;background:transparent;color:inherit;border:1px solid var(--divider-color);border-radius:8px;font:inherit}button:focus-visible,select:focus-visible{outline:2px solid currentColor;outline-offset:4px}powerflo-card{display:block}@media(max-width:550px){body{padding:12px}}
+  </style>
+</head>
+<body><main><div class="fixture-controls"><span>PowerFlo preview · simulated data</span><label>Battery <select id="mode"><option value="charging">Charging</option><option value="discharging">Discharging</option><option value="static">Static</option></select></label><button type="button" id="theme">Change theme</button></div><powerflo-card></powerflo-card></main>
+<script type="module">
+  /** @fileoverview Local preview with synthetic sensor updates and daily-reset Recorder responses. */
+  import "../dist/powerflo-card.js";
+  import { DEFAULT_CONFIG } from "../src/config.js";
+  import { periodRange } from "../src/period-history.js";
+  const card = document.querySelector("powerflo-card");
+  const entities = Object.fromEntries(Object.keys(DEFAULT_CONFIG.entities).map(key => [key, `sensor.demo_${key}`]));
+  card.setConfig({ entities });
+  const values = { freshness: "on", inverter_status: "normal", grid_connected: "on", solar_power: 4820,
+    pv1_power: 1620, pv2_power: 1580, pv3_power: 1620, battery_soc: 85, battery_power: -2000,
+    battery_voltage: 53.4, battery_temperature: 32.4, grid_power: 240, grid_voltage: 230.4,
+    grid_frequency: 50, load_power: 3000, solar_today: 12.4, grid_today: 3.1, load_today: 10.2, battery_today: 1.8 };
+  const hass = { config: { time_zone: "Africa/Lagos" }, states: {},
+    /**
+     * Supplies synthetic history bounded to the requested date range.
+     * @param {string} method HTTP method.
+     * @param {string} path Requested history path.
+     * @returns {Promise<Array>} Simulated history series.
+     */
+    callApi: async (method, path) => {
+      const query = new URL(path, location.origin);
+      const start = new Date(decodeURIComponent(query.pathname.split("/").at(-1))).getTime();
+      const end = Date.parse(query.searchParams.get("end_time"));
+      const ids = query.searchParams.get("filter_entity_id").split(",");
+      return ids.map(id => {
+        const key = Object.keys(entities).find(key => entities[key] === id);
+        const maximum = Number(values[key]);
+        const output = [];
+        for (let day = start; day <= end; day += 86400000) {
+          const today = day === periodRange("today", new Date(end), "Africa/Lagos").start.getTime();
+          const dayEnd = Math.min(day + 86399000, end);
+          for (let index = 0; index <= 12; index += 1) {
+            const timestamp = day + (dayEnd - day) * index / 12;
+            output.push({ entity_id: id, state: String(maximum * index / 12 * (today ? 1 : 1.3)), last_changed: new Date(timestamp).toISOString() });
+          }
+        }
+        return output;
+      });
+    } };
+  /** Publishes a simulated fresh sensor report every five seconds. */
+  function publish() {
+    const now = new Date().toISOString();
+    hass.states = Object.fromEntries(Object.entries(entities).map(([key, id]) => [id, { state: String(values[key]), attributes: {}, last_updated: now }]));
+    card.hass = hass;
+  }
+  publish();
+  // Seed a simulated 30-second session so the preview immediately illustrates both forecast states.
+  card.runtimeEstimator.samples = [{ time: Date.now() - 30000, watts: 512 }];
+  card.chargeEstimator.samples = [{ time: Date.now() - 30000, watts: 2000 }];
+  setInterval(publish, 5000);
+  document.querySelector("#mode").addEventListener("change", event => {
+    values.battery_power = event.target.value === "charging" ? -2000 : event.target.value === "discharging" ? 512 : 0;
+    values.solar_power = event.target.value === "discharging" ? 0 : 4820;
+    publish();
+    card.runtimeEstimator.samples = [{ time: Date.now() - 30000, watts: 512 }];
+    card.chargeEstimator.samples = [{ time: Date.now() - 30000, watts: 2000 }];
+  });
+  document.querySelector("#theme").addEventListener("click", () => {
+    document.documentElement.dataset.theme = document.documentElement.dataset.theme === "light" ? "dark" : "light";
+  });
+</script></body></html>

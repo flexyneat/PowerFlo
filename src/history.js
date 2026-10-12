@@ -132,14 +132,15 @@ export function downsample(points, targetCount) {
  * @param {HistoryPoint[]} points Numeric points.
  * @param {number} width View-box width.
  * @param {number} height View-box height.
+ * @param {{start: Date, end: Date}} [range] Fixed time-axis bounds.
  * @returns {string} SVG path data or an empty string.
  */
-export function sparklinePath(points, width = 100, height = 36) {
+export function sparklinePath(points, width = 100, height = 36, range) {
   if (points.length < 2) return "";
   const times = points.map((point) => point.time);
   const values = points.map((point) => point.value);
-  const minTime = Math.min(...times);
-  const maxTime = Math.max(...times);
+  const minTime = range?.start.getTime() ?? Math.min(...times);
+  const maxTime = range?.end.getTime() ?? Math.max(...times);
   const minValue = Math.min(...values);
   const maxValue = Math.max(...values);
   const timeSpan = Math.max(1, maxTime - minTime);

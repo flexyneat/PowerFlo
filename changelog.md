@@ -2,8 +2,14 @@
 
 ## Unreleased
 
+- Implement net-charge Time-to-Full/Target using an independent time-weighted window and configurable charge target SOC.
+- Refine the transparent dashboard with battery SOC ring, two forecast columns, stronger hierarchy, and responsive panel-edge flow connectors.
+- Add Today, seven-local-day Week, and calendar-month-to-date Month views for all four energy summaries, with recorded cumulative totals and partial coverage disclosure.
+- Add fixed graph axes, bounded period cache, stale-response guards, history loading/error/retry states, and protection against retained pre-midnight counter values.
+- Add a simulated preview with theme/charge-state controls and save ten refinement ideas in ROADMAP.md.
+
 - Add a time-weighted recent-discharge runtime estimate in the battery panel, configurable reserve SOC/window/sample age, and explicit warmup/charging/static/stale/reserve states.
-- Document time-to-full constant-rate and SOC-band taper formulas; charging forecasts are not implemented yet.
+- Document time-to-full constant-rate and SOC-band taper formulas; learned future taper remains unimplemented.
 
 - Document manual installation, resource registration, complete entity mappings, configuration defaults, image handling, history, updates, troubleshooting, and current HACS/layout limitations.
 
