@@ -21,6 +21,15 @@ describe("safeImageSource", () => {
 });
 
 describe("normalizeConfig", () => {
+  it("accepts another inverter identity and validates optional array nameplate size", () => {
+    const config=normalizeConfig({inverter_name:"Example inverter",inverter_model:"Model X",inverter_capacity_kw:8,
+      battery_capacity_kwh:20,solar_capacity_kw:10.5});
+    expect(config.inverter_model).toBe("Model X"); expect(config.inverter_capacity_kw).toBe(8);
+    expect(config.battery_capacity_kwh).toBe(20); expect(config.solar_capacity_kw).toBe(10.5);
+    expect(normalizeConfig({solar_capacity_kw:-2}).solar_capacity_kw).toBe(0);
+    expect(normalizeConfig({solar_capacity_kw:"bad"}).solar_capacity_kw).toBe(0);
+    expect(normalizeConfig({solar_capacity_kw:1e9}).solar_capacity_kw).toBe(10000);
+  });
   it("normalizes runtime reserve, averaging, and freshness settings", () => {
     expect(normalizeConfig().battery_reserve_soc).toBe(20);
     const config = normalizeConfig({ battery_reserve_soc: 120, runtime_window_minutes: 0,

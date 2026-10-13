@@ -3,3 +3,9 @@ dist/
 coverage/
 .DS_Store
 *.log
+graphify-out/
+.graphify*
+AGENTS.md
+Task Checklist.md
+task-status.md
+chatlog.md

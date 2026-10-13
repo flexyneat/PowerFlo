@@ -15,7 +15,7 @@
  */
 export function numericState(states, entityId) {
   const raw = entityId ? states[entityId]?.state : undefined;
-  if (raw === undefined || raw === "unknown" || raw === "unavailable") return null;
+  if (raw === undefined || raw === null || String(raw).trim() === "" || raw === "unknown" || raw === "unavailable") return null;
   const parsed = Number(raw);
   return Number.isFinite(parsed) ? parsed : null;
 }
@@ -41,8 +41,8 @@ export function textState(states, entityId) {
 export function booleanState(states, entityId) {
   const value = textState(states, entityId);
   if (value === null) return null;
-  if (["on", "true", "connected", "1", "yes", "fresh"].includes(value)) return true;
-  if (["off", "false", "disconnected", "0", "no", "stale"].includes(value)) return false;
+  if (["on", "true", "connected", "online", "1", "yes", "fresh"].includes(value)) return true;
+  if (["off", "false", "disconnected", "offline", "0", "no", "stale"].includes(value)) return false;
   return null;
 }
 
@@ -89,6 +89,7 @@ export function batteryMode(polarity, positiveMeaning, available = true) {
 export function gridMode(polarity, positiveMeaning, connected, available = true) {
   if (!available) return "unavailable";
   if (connected === false) return "disconnected";
+  if (connected === null) return "unavailable";
   if (polarity === "stopped") return "static";
   const positive = polarity === "positive";
   const importing = positiveMeaning === "import" ? positive : !positive;
@@ -134,7 +135,7 @@ export function deriveModel(states, config, previous) {
   const gridPolarity = powerPolarity(gridPower, previous.grid, config.flow_threshold_w, config.flow_release_w);
   const battery = batteryMode(batteryPolarity, config.battery_positive, usable && batteryPower !== null);
   const connected = booleanState(states, ids.grid_connected);
-  const grid = gridMode(gridPolarity, config.grid_positive, connected, usable && gridPower !== null);
+  const grid = gridMode(gridPolarity, config.grid_positive, connected, usable && (gridPower !== null || connected === false));
   const solar = usable && solarPower !== null && solarPower >= config.flow_threshold_w ? "producing" : "idle";
   const load = usable && loadPower !== null && loadPower >= config.flow_threshold_w ? "powered" : "zero";
   return {

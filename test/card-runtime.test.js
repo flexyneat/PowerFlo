@@ -80,6 +80,25 @@ describe("battery panel runtime", () => {
 });
 
 describe("visible flow arrows and forecast illustrations", () => {
+  it("shows confirmed grid disconnection without implying live grid measurements", () => {
+    const card=fixture(); const root=card.shadowRoot;
+    card.hassValue.states[card.config.entities.grid_connected].state="offline";
+    card.hassValue.states[card.config.entities.grid_power].state="240"; card.updateModel();
+    expect(root.querySelector('[data-value="grid"]').textContent).toBe("Disconnected");
+    expect(root.querySelector('[data-flow-path="grid"]').dataset.direction).toBe("stopped");
+    expect(root.querySelector('[data-meta="grid"]').textContent).not.toContain("230");
+    card.hassValue.states[card.config.entities.grid_connected].state="unavailable"; card.updateModel();
+    expect(root.querySelector('[data-meta="grid"]').textContent).toContain("Connection unknown");
+    card.hassValue.states[card.config.entities.freshness].state="off"; card.updateModel();
+    expect(root.querySelector('[data-value="grid"]').textContent).toBe("Stale");
+  });
+  it("shows optional installed array size without modifying measured solar power", () => {
+    const card=fixture({solar_capacity_kw:9.6}); card.updateModel();
+    expect(card.shadowRoot.querySelector('[data-solar-capacity]').textContent).toBe("9.6 kWp installed");
+    expect(card.shadowRoot.querySelector('[data-value="solar"]').textContent).toBe("0.00 kW");
+    card.setConfig({...card.config,solar_capacity_kw:0});
+    expect(card.shadowRoot.querySelector('[data-solar-capacity]').hidden).toBe(true);
+  });
   it("keeps configured target and a distinct full estimate in the battery during all states", () => {
     const card=fixture({battery_positive:"charge",battery_charge_target_soc:95,charge_taper_floor_ratio:1});
     const power=card.hassValue.states[card.config.entities.battery_power]; power.state="2000";

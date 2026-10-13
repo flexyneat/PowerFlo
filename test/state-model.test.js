@@ -29,6 +29,11 @@ function entity(state) {
 }
 
 describe("state readers", () => {
+  it("supports online/offline aliases and rejects blank numeric telemetry", () => {
+    expect(booleanState({x:entity("online")},"x")).toBe(true);
+    expect(booleanState({x:entity("offline")},"x")).toBe(false);
+    expect(numericState({x:entity(" ")},"x")).toBeNull();
+  });
   const states = { "sensor.number": entity("42.5"), "sensor.text": entity(" Normal "), "binary_sensor.on": entity("on") };
   it("reads available values", () => {
     expect(numericState(states, "sensor.number")).toBe(42.5);
@@ -66,6 +71,7 @@ describe("hysteresis and modes", () => {
     expect(gridMode("stopped", "import", true)).toBe("static");
     expect(gridMode("positive", "import", false)).toBe("disconnected");
     expect(gridMode("positive", "import", true, false)).toBe("unavailable");
+    expect(gridMode("positive", "import", null)).toBe("unavailable");
   });
 
   it("maps every true power-flow direction", () => {
@@ -80,6 +86,13 @@ describe("hysteresis and modes", () => {
 });
 
 describe("deriveModel", () => {
+  it("retains fresh confirmed disconnection even if grid power is unavailable", () => {
+    const states={"binary_sensor.fresh":entity("on"),"binary_sensor.grid":entity("off"),"sensor.grid":entity("unavailable")};
+    const model=deriveModel(states,config,{battery:"stopped",grid:"positive"});
+    expect(model.grid).toBe("disconnected"); expect(model.flows.grid).toBe("stopped");
+    states["binary_sensor.fresh"]=entity("off");
+    expect(deriveModel(states,config,{battery:"stopped",grid:"positive"}).grid).toBe("unavailable");
+  });
   it("derives discharge/import flows from fresh live values", () => {
     const states = {
       "binary_sensor.fresh": entity("on"),

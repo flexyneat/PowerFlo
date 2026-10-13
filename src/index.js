@@ -12,7 +12,7 @@ window.customCards = window.customCards ?? [];
 window.customCards.push({
   type: "powerflo-card",
   name: "PowerFlo Card",
-  description: "Live, read-only Deye inverter power flow with truthful direction and freshness.",
+  description: "Live, read-only solar, battery, grid and load flow from your Home Assistant entities.",
   preview: true,
   documentationURL: "https://github.com/flexyneat/PowerFlo",
 });

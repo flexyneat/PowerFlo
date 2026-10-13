@@ -22,6 +22,9 @@ describe("offline HTML export", () => {
     expect(html).not.toContain("location.origin");
     expect((html.match(/<script>/g)??[]).length).toBe(1);
     expect(html).toContain("Change theme");
+    expect(html).toContain("Customize system");
+    expect(html).toContain("grid-mode");
+    expect(html).toContain("Copyright (c) 2026 PowerFlo contributors");
     const embedded=html.match(/data:image\/png;base64,([a-zA-Z0-9+/=]+)/)[1];
     expect(Buffer.from(embedded,"base64")).toEqual(await readFile(new URL("../assets/inverter-reference.png",import.meta.url)));
   });

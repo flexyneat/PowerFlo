@@ -1,4 +1,4 @@
-/** @fileoverview PowerFlo's read-only live topology, battery forecasts, and period history. */
+/** @fileoverview Integration-independent, read-only live topology, forecasts and period history. */
 import { normalizeConfig, validateConfig } from "./config.js";
 import { FlowAnimator } from "./flow-engine.js";
 import { appendHistoryPoint } from "./history.js";
@@ -285,6 +285,8 @@ export class PowerFloCard extends HTMLElement {
     }
     // Channel readings use the full solar panel width rather than crowding the power column.
     this.shadowRoot.querySelector(".solar").append(this.shadowRoot.querySelector(".mppts"));
+    const solarCapacity=document.createElement("div"); solarCapacity.className="node-meta solar-capacity";
+    solarCapacity.setAttribute("data-solar-capacity",""); this.shadowRoot.querySelector(".solar").append(solarCapacity);
     this.shadowRoot.querySelector(".history-message .retry").addEventListener("click", () => this.loadHistoryIfNeeded(true));
     const slider = this.shadowRoot.querySelector("#history-cursor");
     slider.setAttribute("aria-describedby", "inspection-time");
@@ -344,8 +346,11 @@ export class PowerFloCard extends HTMLElement {
     this.setText(".title", this.config.title);
     this.setText(".inverter-name", this.config.inverter_name);
     this.setText(".inverter-model", this.config.inverter_model);
+    this.shadowRoot.querySelector(".inverter-model").hidden = !this.config.inverter_model;
     this.setText(".inverter-capacity", `${this.config.inverter_capacity_kw} kW rated`);
     this.setText('[data-meta="battery-capacity"]', `${this.config.battery_capacity_kwh.toFixed(2)} kWh capacity`);
+    this.setText('[data-solar-capacity]', `${this.config.solar_capacity_kw} kWp installed`);
+    this.shadowRoot.querySelector('[data-solar-capacity]').hidden = this.config.solar_capacity_kw <= 0;
     this.setText('[data-battery-target-label]', `To ${this.config.battery_charge_target_soc === 100 ? 95 : this.config.battery_charge_target_soc}%`);
     this.setText('[data-meta="charge-label"]', this.config.battery_charge_target_soc === 100 ? "Time to full" : `Time to ${this.config.battery_charge_target_soc}%`);
     const rail = this.shadowRoot.querySelector(".milestone-rail");
@@ -399,7 +404,7 @@ export class PowerFloCard extends HTMLElement {
     this.setText(".inverter-state", label(model.inverterStatus));
     const powers = { solar: model.values.solarPower, grid: model.values.gridPower, battery: model.values.batteryPower, load: model.values.loadPower };
     for (const name of FLOW_NAMES) {
-      this.setReading(`[data-value="${name}"]`, powers[name] === null ? null : Math.abs(powers[name]) / 1000, "kW", 2);
+      if (name !== "grid") this.setReading(`[data-value="${name}"]`, powers[name] === null ? null : Math.abs(powers[name]) / 1000, "kW", 2);
       this.applyFlow(name, model.flows[name], powers[name], model.dataState === "fresh");
     }
     for (const index of [1, 2, 3]) this.setReading(`[data-value="pv${index}"]`, model.values[`pv${index}Power`] === null ? null : Math.abs(model.values[`pv${index}Power`]) / 1000, "kW", 2);
@@ -409,10 +414,29 @@ export class PowerFloCard extends HTMLElement {
     this.setText('[data-battery-power-label]', model.battery === "charging" ? "Charging power" : model.battery === "discharging" ? "Discharging power" : "Battery power");
     this.observeDemand(model);
     this.updateDemand();
-    this.setText('[data-meta="grid"]', `${label(model.grid)} · ${formatValue(model.values.gridVoltage, "V")} · ${formatValue(model.values.gridFrequency, "Hz")}`);
+    this.updateGrid(model);
     this.updateRuntime(model);
     this.appendLiveHistory();
     this.updateHistory();
+  }
+
+  /** @param {Object} model Validated domain state. Separates disconnection from stale or unknown telemetry. */
+  updateGrid(model) {
+    const node=this.shadowRoot.querySelector(".grid");
+    const meta=this.shadowRoot.querySelector('[data-meta="grid"]'); meta.setAttribute("role","status");
+    node.dataset.connection=model.dataState !== "fresh" ? model.dataState : model.grid === "disconnected" ? "disconnected" : model.connected === null ? "unknown" : "connected";
+    if (model.dataState !== "fresh") {
+      this.setText('[data-value="grid"]',label(model.dataState));
+      this.setText('[data-meta="grid"]',`Telemetry ${model.dataState} · last reported ${model.connected === false ? "disconnected" : model.connected === true ? "connected" : "unknown"}`);
+    } else if (model.grid === "disconnected") {
+      // A retained nonzero sensor value is not evidence of current flow through a disconnected grid port.
+      this.setText('[data-value="grid"]',"Disconnected"); this.setText('[data-meta="grid"]',"Grid flow stopped");
+    } else if (model.connected === null) {
+      this.setText('[data-value="grid"]',"Unavailable"); this.setText('[data-meta="grid"]',"Connection unknown · grid flow paused");
+    } else {
+      this.setReading('[data-value="grid"]',model.values.gridPower === null ? null : Math.abs(model.values.gridPower)/1000,"kW",2);
+      this.setText('[data-meta="grid"]',`${model.grid === "unavailable" ? "Connected · power unavailable" : label(model.grid)} · ${formatValue(model.values.gridVoltage,"V")} · ${formatValue(model.values.gridFrequency,"Hz")}`);
+    }
   }
 
   /**

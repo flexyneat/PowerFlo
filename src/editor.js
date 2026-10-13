@@ -75,6 +75,7 @@ export class PowerFloEditor extends HTMLElement {
       ["inverter_model", "Inverter model", "text"],
       ["inverter_capacity_kw", "Inverter capacity (kW)", "number"],
       ["battery_capacity_kwh", "Battery capacity (kWh)", "number"],
+      ["solar_capacity_kw", "Installed solar array (kWp; 0 hides)", "number"],
       ["inverter_image", "Inverter image URL", "text"],
     ];
     for (const field of appearanceFields) appearance.append(this.createField(...field));

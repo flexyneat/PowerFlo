@@ -1,7 +1,10 @@
 /**
  * @fileoverview Rollup configuration for the dependency-free browser bundle.
  */
-import { copyFile } from "node:fs/promises";
+import { copyFile, readFile } from "node:fs/promises";
+
+/** Keep the MIT permission and copyright notice with redistributed standalone JavaScript. */
+const license=await readFile(new URL("./LICENSE",import.meta.url),"utf8");
 
 /** @type {import('rollup').RollupOptions} */
 const config = {
@@ -15,6 +18,7 @@ const config = {
     file: "dist/powerflo-card.js",
     format: "es",
     sourcemap: true,
+    banner: `/*!\n${license.replaceAll("*/","* /")}\n*/`,
   },
 };
 

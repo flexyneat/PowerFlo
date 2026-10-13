@@ -1,491 +1,231 @@
 # PowerFlo
 
-> Early implementation. Install version 0.2.1 from the private [PowerFlo release](https://github.com/flexyneat/PowerFlo/releases/tag/v0.2.1); repository access is required. Manual installation is supported; HACS distribution is not validated. Home Assistant 2026.10 remains the intended commissioning environment, with live compatibility still to be validated.
+A transparent, read-only Home Assistant card for solar, battery, grid and load power flow. Map your existing entities, configure your system's ratings, and see what is supplying your loads now.
 
-PowerFlo is a read-only, live power-flow card for Home Assistant. Its configurable default display profile targets the Deye `SUN-12K-SG02LP1-EU-AM3` with a 32.14 kWh battery bank. The card reads existing Home Assistant entities and Recorder history; install and commission the inverter gateway separately.
+![PowerFlo with simulated telemetry](assets/current-design.png)
 
-![PowerFlo reference-led redesign](assets/current-design.png)
-
-*Rendered implementation with explicitly simulated telemetry, not a commissioned Home Assistant screenshot. Display surfaces are transparent.*
-
-## Current status
-
-PowerFlo is an early implementation. The state engine, reversible flow model, charge/discharge estimates, Today/Week/Month history, visual editor, responsive card shell, and unit tests exist. Live Deye commissioning and a tagged HACS release remain open. Simulated browser checks cover period switching, forecast labels, transparent themes, keyboard focus, and narrow layouts; these do not replace live Home Assistant validation.
-
-## Safety boundary
-
-PowerFlo reads Home Assistant entities. It does not connect to Modbus, call Home Assistant services, or write inverter settings.
+*Preview readings are simulated. PowerFlo does not discover hardware, connect directly to an inverter or change inverter settings.*
 
 ## Features
 
-- Dynamic `Static`, `Charging`, and `Discharging` battery status.
-- Smoothed runtime to a configurable reserve SOC, with explainable estimate confidence.
-- Solar-aware Time-to-Full/Target and 50%, 75%, and 95% milestones, using measured net charge and configurable assumed high-SOC taper.
-- Configurable battery and grid sign conventions.
-- Reversible solar, grid, battery, and load arrows driven by current power state.
-- Freshness-gated transform-only flow particles.
-- Rounded, image-safe routes with small reversible directional chevrons; default endpoints align to the visible enclosure, not transparent image padding. Uploaded art uses conservative full-image bounds.
-- Side-by-side battery SOC/power and always-visible target/full estimates; reserve runtime, milestones and assumptions remain in Battery details.
-- Protected-load recent 15-minute power trend, time-weighted average, observed peak and explicit coverage/retry states.
-- Solar, Grid, Load, and Battery energy histories with Today, Week, and Month views; Week/Month use validated long-term statistics.
-- Shared pointer, touch, and keyboard chart inspection with actual observation timestamps.
-- Editable title, inverter identity, ratings, clock format, and safe local raster image upload.
-- 12-column Sections compatibility through `getGridOptions()`.
-- Dark/light theme variables, narrow-card layout, and reduced-motion behavior.
-- Plain JavaScript and JSDoc; no TypeScript toolchain.
+- Reversible power-flow arrows, dynamic battery status and freshness-gated motion.
+- Disconnected-grid presentation separate from unknown connection data and stale telemetry.
+- Side-by-side battery SOC/power, with target and full estimates always visible. Runtime, milestones, confidence and assumptions remain in Battery details.
+- Recent 15-minute protected-load trend, time-weighted average, observed peak and coverage labels.
+- Today/Week/Month energy history with pointer, touch and keyboard observation inspection.
+- Editable title, inverter name/model/image, inverter rating, battery capacity and solar-array nameplate size.
+- Transparent theme-native surfaces, responsive layout, 12/24-hour clock and reduced-motion support.
+- Single-file offline demo with simulated controls and system customization.
 
-## Transparent theme support
+Production source is JavaScript with no runtime package dependencies. The card reads through Home Assistant's existing authenticated frontend connection. It does not call services, write inverter settings or access Modbus directly.
 
-The outer card, inverter panel, flow nodes, and Today summaries have transparent backgrounds and no outer shadow. Your dashboard background or wallpaper shows through every panel. Text and borders use Home Assistant's `primary-text-color`, `secondary-text-color`, `divider-color`, and card border/radius variables, including custom themes. Flow colors retain their domain meaning. Uploaded inverter images retain their original background; use a transparent PNG or WebP for an image that blends into the dashboard.
+## Compatibility is an entity contract
 
-## Required entities
+PowerFlo began with a Deye profile, but its display is integration-independent. Other inverter models can use it when their integrations expose the measurements below with the expected units and polarity. This is not a claim that every model or firmware has been tested.
 
-| Mapping | Purpose |
-|---|---|
-| `freshness` | Boolean entity that is on/fresh while fast Modbus telemetry is current |
-| `inverter_status` | Readable inverter status text from the integration |
-| `grid_connected` | Boolean grid connection state |
-| `solar_power` | Aggregate PV power in watts |
-| `battery_soc` | Battery state of charge in percent |
-| `battery_power` | Signed battery power in watts |
-| `grid_power` | Signed grid power in watts |
-| `load_power` | Protected-load power in watts |
+Use aggregate solar, grid and protected-load readings. There are three optional PV-channel slots; the card is not a per-phase diagnostic display. Device protocols and register maps belong to your upstream integration.
 
-PV channel values, voltage, temperature, frequency, and Today energy entities are recommended but optional.
+**Set your real ratings before using estimates.** The retained 12 kW and 32.14 kWh defaults are example values for backward compatibility, not automatic detection. Solar size is a nameplate label, not measured generation or a forecast multiplier.
 
 ## Installation
 
-### Prerequisites
+Manual installation is supported. HACS metadata exists, but automated HACS distribution/installation has not been validated.
 
-- A working Home Assistant instance and permission to manage dashboard resources.
-- An inverter integration exposing all eight required mappings above, with power in **W** and SOC in **%**.
-- A trustworthy freshness entity that switches off when telemetry stops. Do not substitute an always-on helper.
-- Recorder enabled for daily-energy entities if you want historical sparklines.
-- Node.js **22 or newer** and npm on your development computer to build PowerFlo. Node is not required on the Home Assistant server.
+### 1. Get the files
 
-HACS is not required for manual installation. Live updates arrive when Home Assistant receives new entity values; the card does not increase your gateway's polling rate.
-
-### 1. Build the installable bundle
-
-Alternatively, download **both** `powerflo-card.js` and `inverter-reference.png` from the private v0.2.1 release and proceed to step 2. Keep them in the same folder. The build instructions below are for source installations.
-
-From this project's local checkout:
+Use both installation files from a [published release](https://github.com/flexyneat/PowerFlo/releases), when available for the version you want, or build the source checkout with Node.js 22+:
 
 ```bash
-cd /path/to/PowerFlo
 npm ci
 npm run verify
 ```
 
-This runs lint, tests with coverage, and the production build. Install **both** `dist/powerflo-card.js` and `dist/inverter-reference.png` in the same folder. The image is a generated transparent illustration based on the supplied design reference, not a manufacturer product photograph. Copy the built outputs rather than the individual `src/` files. The source map is optional.
-
-### 2. Copy the bundle into Home Assistant
-
-Use your usual file-management method to create `www/powerflo/` inside the active Home Assistant configuration directory, then copy the built JavaScript there:
+The current source version is **0.3.0**. Build output:
 
 ```text
-<configuration directory>/
-└── www/
-    └── powerflo/
-        ├── powerflo-card.js
-        └── inverter-reference.png
+dist/powerflo-card.js
+dist/inverter-reference.png
+dist/PowerFlo-demo-v0.3.0.html
 ```
 
-On Home Assistant OS this is commonly `/config/www/powerflo/`. On a Container installation, use the host directory mounted as `/config`.
+Install the JavaScript and PNG together. The HTML is a demo, not an HA resource; the source map is optional. Source changes do not replace previously published release assets.
 
-Files under `www/` are served at `/local/`. If you create `www/` for the first time, restart Home Assistant so it recognizes the directory. See the official [custom-card documentation](https://developers.home-assistant.io/docs/frontend/custom-ui/custom-card/).
+### 2. Copy into Home Assistant
 
-### 3. Register the dashboard resource
+Create `www/powerflo/` in your HA configuration directory:
 
-For a dashboard managed through the UI:
+```text
+<config>/www/powerflo/powerflo-card.js
+<config>/www/powerflo/inverter-reference.png
+```
 
-1. Enable **Advanced mode** in your Home Assistant profile if Resources is hidden.
-2. Open **Settings → Dashboards** and find **Resources** in the menu.
-3. Add `/local/powerflo/powerflo-card.js?v=0.2.1` with type **JavaScript module**.
-4. Save and reload the browser/dashboard.
+HA serves `www/` files under `/local/`. If you have just created `www/` for the first time, restart HA so it recognises the directory. See the [official custom-card documentation](https://developers.home-assistant.io/docs/frontend/custom-ui/custom-card/).
 
-For an existing YAML-managed dashboard resource configuration, merge this entry into your `lovelace.resources` list instead:
+### 3. Register the module
+
+Enable Advanced mode in your user profile. Open **Settings → Dashboards**, then **Resources** in the three-dot menu. Add `/local/powerflo/powerflo-card.js?v=0.3.0` as a **JavaScript module**. For YAML-managed resources:
 
 ```yaml
 lovelace:
-  mode: yaml
+  resource_mode: yaml
   resources:
-    - url: /local/powerflo/powerflo-card.js?v=0.2.1
+    - url: /local/powerflo/powerflo-card.js?v=0.3.0
       type: module
 ```
 
-Use one registration method and avoid duplicates. Do not switch a UI dashboard to YAML mode just to install the card. Official guidance: [registering resources](https://developers.home-assistant.io/docs/frontend/custom-ui/registering-resources/).
+Use the resource-management method matching your dashboard setup; avoid duplicate registrations. See [resource registration](https://developers.home-assistant.io/docs/frontend/custom-ui/registering-resources/) and [dashboard resource modes](https://www.home-assistant.io/dashboards/dashboards/).
 
-### 4. Add and configure the card
+### 4. Add your card
 
-Edit your dashboard, add a **Manual** card, and paste the configuration in the next section. Replace the example IDs with your actual entities from **Developer tools → States**.
-
-All eight required mappings must be present. The empty starter configuration produces validation errors, so start with a Manual card. Once valid mappings are saved, the visual editor lets you change labels, capacities, images, clock format, flow behavior, and entity IDs.
-
-### 5. Verify the live readings
-
-Compare PowerFlo with Developer tools and the inverter display:
-
-1. Confirm input power is in **W**, energy is in **kWh**, and temperature is in **°C**. PowerFlo does not inspect units or convert kW/Wh inputs.
-2. Observe battery charging and discharging, then set `battery_positive` to match the signed power sensor.
-3. Observe grid import/export, then set `grid_positive` accordingly.
-4. Verify freshness switches off when telemetry stops and flow animation pauses.
-5. Confirm your load mapping represents the protected-load output you intend to display.
-
-### HACS installation status
-
-HACS installation is not validated. This repository and release are private, and `dist/` is generated locally and excluded from Git; built installation files are supplied as release assets. Do not assume community HACS availability or private-repository compatibility. Manual release-asset installation is the supported path. Metadata, filename and installation behavior must be tested before claiming HACS support. See [HACS dashboard publishing requirements](https://www.hacs.xyz/docs/publish/plugin/).
-
-## Development
-
-```bash
-npm ci
-npm run verify
-```
-
-The build writes `dist/powerflo-card.js` and its source map.
-
-## Minimal card configuration
-
-Use Home Assistant's dashboard editor or resource API; never edit `.storage` directly.
-
-```yaml
-type: custom:powerflo-card
-title: Deye Energy
-inverter_name: DEYE
-inverter_model: SUN-12K-SG02LP1-EU-AM3
-inverter_capacity_kw: 12
-battery_capacity_kwh: 32.14
-clock_format: "12"
-battery_positive: discharge
-grid_positive: import
-battery_reserve_soc: 20
-runtime_window_minutes: 5
-runtime_max_sample_age_seconds: 60
-entities:
-  freshness: binary_sensor.deye_modbus_flow_fresh
-  inverter_status: sensor.deye_running_status
-  grid_connected: binary_sensor.deye_grid_connected
-  solar_power: sensor.deye_pv_power
-  battery_soc: sensor.deye_battery_soc
-  battery_power: sensor.deye_battery_power
-  grid_power: sensor.deye_grid_power
-  load_power: sensor.deye_inverter_output_power
-```
-
-Entity IDs above illustrate the required shape. Select the actual entities created by the commissioned gateway.
-
-## Complete entity configuration
-
-Use this example when the optional readings and daily counters exist. Omit optional mappings you do not have.
+Use the visual editor or a manual card. Replace every example entity ID with one from your installation:
 
 ```yaml
 type: custom:powerflo-card
 title: Home energy
-inverter_name: DEYE
-inverter_model: SUN-12K-SG02LP1-EU-AM3
-inverter_capacity_kw: 12
-battery_capacity_kwh: 32.14
-clock_format: "12"
-flow_threshold_w: 40
-flow_release_w: 20
+inverter_name: My inverter
+inverter_model: My model
+inverter_capacity_kw: 8
+battery_capacity_kwh: 20
+solar_capacity_kw: 10.5
 battery_positive: discharge
 grid_positive: import
+battery_reserve_soc: 20
+battery_charge_target_soc: 95
 entities:
-  freshness: binary_sensor.deye_modbus_flow_fresh
-  inverter_status: sensor.deye_running_status
-  grid_connected: binary_sensor.deye_grid_connected
-  solar_power: sensor.deye_pv_power
-  pv1_power: sensor.deye_pv1_power
-  pv2_power: sensor.deye_pv2_power
-  pv3_power: sensor.deye_pv3_power
-  battery_soc: sensor.deye_battery_soc
-  battery_power: sensor.deye_battery_power
-  battery_voltage: sensor.deye_battery_voltage
-  battery_temperature: sensor.deye_battery_temperature
-  grid_power: sensor.deye_grid_power
-  grid_voltage: sensor.deye_grid_voltage
-  grid_frequency: sensor.deye_grid_frequency
-  load_power: sensor.deye_inverter_output_power
-  solar_today: sensor.deye_solar_energy_today
-  grid_today: sensor.deye_grid_import_energy_today
-  load_today: sensor.deye_load_energy_today
-  battery_today: sensor.deye_battery_discharge_energy_today
+  freshness: binary_sensor.inverter_telemetry_fresh
+  inverter_status: sensor.inverter_status
+  grid_connected: binary_sensor.grid_connected
+  solar_power: sensor.solar_power
+  battery_soc: sensor.battery_soc
+  battery_power: sensor.battery_power
+  grid_power: sensor.grid_power
+  load_power: sensor.protected_load_power
 ```
 
-| Optional mapping | Unit | Meaning |
-|---|---|---|
-| `pv1_power`, `pv2_power`, `pv3_power` | W | Individual MPPT/channel power. |
-| `battery_voltage` | V | Battery-bank voltage. |
-| `battery_temperature` | °C | Reported battery temperature. |
-| `grid_voltage` | V | Grid voltage. |
-| `grid_frequency` | Hz | Grid frequency. |
-| `solar_today` | kWh | Today's solar production energy. |
-| `grid_today` | kWh | Selected daily grid counter, normally import. |
-| `load_today` | kWh | Selected daily load counter. |
-| `battery_today` | kWh | Selected daily battery counter, normally discharge. |
+## Entities and units
 
-The card displays the counters you map; it does not calculate energy from power or combine charging/discharging totals. Choose daily-reset counters and document your selected grid/battery meanings. Missing optional numeric readings display `—`. The summary labels are fixed.
+| Required key | Expected value |
+| --- | --- |
+| `freshness` | A trustworthy boolean for current telemetry, not an always-on helper |
+| `inverter_status` | Readable operating-status text |
+| `grid_connected` | Boolean connection state; do not infer it from zero import |
+| `solar_power` | Aggregate generation, W |
+| `battery_soc` | SOC, % |
+| `battery_power` | Signed battery-side power, W |
+| `grid_power` | Signed grid power, W |
+| `load_power` | Protected-load demand, W |
 
-The inverter-status entity must contain readable text; raw register codes are not translated by PowerFlo. The card does not itself verify the integration's register map.
+Boolean aliases include `on/off`, `true/false`, `connected/disconnected`, `online/offline`, `1/0` and `yes/no`. Unknown data is not false; blank numeric data is not zero. The card depends on your integration's freshness signal and cannot independently prove hardware connectivity.
 
-Boolean mappings accept `on`, `true`, `connected`, `1`, `yes`, or `fresh` as true, and `off`, `false`, `disconnected`, `0`, `no`, or `stale` as false, case-insensitively. Missing, unrecognized, unknown, or unavailable values are unavailable. For freshness, false produces **Stale**, and unavailable produces **Unavailable**; both stop flow motion.
+With `battery_positive: discharge`, positive watts mean discharge and negative watts mean charge. With `grid_positive: import`, positive watts mean import and negative watts mean export. Reverse these options when your source uses the opposite convention.
 
-## Customization
+Optional mappings go inside the same `entities` object:
 
-| Setting | Default | Accepted values / purpose |
-|---|---|---|
-| `title` | `Deye Energy` | Text, up to 60 characters. |
-| `inverter_name` | `DEYE` | Text, up to 40 characters. |
-| `inverter_model` | `SUN-12K-SG02LP1-EU-AM3` | Text, up to 80 characters. |
-| `inverter_capacity_kw` | `12` | 0.1–1,000 kW; display metadata. |
-| `battery_capacity_kwh` | `32.14` | 0.1–10,000 kWh; display metadata. |
-| `inverter_image` | Empty | Built-in illustration when empty; supported local path or raster data URL otherwise. |
-| `clock_format` | `"12"` | `"12"` for AM/PM or `"24"`; Home Assistant timezone. |
-| `battery_positive` | `discharge` | `discharge` or `charge`: meaning of positive battery power. |
-| `grid_positive` | `import` | `import` or `export`: meaning of positive grid power. |
-| `flow_threshold_w` | `40` | Activation threshold, 1–5,000 W. |
-| `flow_release_w` | `20` | Battery/grid release threshold, between 0 and the activation threshold. |
-| `battery_reserve_soc` | `20` | Runtime stopping point, 0–100%. Does not change inverter settings. |
-| `battery_charge_target_soc` | `100` | Time-to-Full target, 1–100%; lower targets change the displayed label. |
-| `runtime_window_minutes` | `5` | Discharge averaging window, 1–60 minutes. |
-| `runtime_max_sample_age_seconds` | `60` | Maximum power sample age/gap, 5–300 seconds; choose to suit gateway polling. |
-| `charge_taper_start_soc` | `90` | Assumed taper start, 50–99% SOC. |
-| `charge_taper_floor_ratio` | `0.2` | Assumed charge-power ratio at full SOC, 0.05–1. |
-| `solar_projection_hours` | `4` | Future solar-supply horizon, 0–24 hours, capped at sunset when available. |
+| Key | Unit / purpose |
+| --- | --- |
+| `pv1_power`, `pv2_power`, `pv3_power` | W, PV-channel power |
+| `battery_voltage`, `battery_temperature` | V and °C |
+| `grid_voltage`, `grid_frequency` | V and Hz |
+| `solar_today`, `grid_today`, `load_today`, `battery_today` | kWh, daily energy counters |
+| `solar_forecast_power` | W, optional average future solar supply—not a daily kWh forecast |
 
-With `battery_positive: discharge`, +512 W means discharging and −512 W means charging. With `grid_positive: import`, positive power means grid → inverter; negative means inverter → grid. Arrowheads and moving particles follow these derived directions on the wide layout. Solar flows toward the inverter while producing; protected load flows away from it while powered.
+Choose counters deliberately: import is not net grid energy, and battery discharge is not charging energy. Summary labels do not change the meaning of your source counters.
 
-Battery/grid hysteresis keeps an active direction until power magnitude falls below the release threshold, reducing flicker near zero. Solar/load use the activation threshold only. **Static** means no significant flow under the configured thresholds, rather than necessarily exactly zero watts.
+## System customization
 
-### Inverter image
+The native editor exposes the fields below, image upload and entity/statistic mappings. Text is rendered as text, not HTML.
 
-The visual editor's **Upload inverter image** accepts PNG, JPEG, or WebP up to **2 MB**, with dimensions no greater than **4096 × 4096**. It embeds the selected file as a data URL in the card configuration; it does not create a server-side image file.
+| Option | Default | Purpose |
+| --- | --- | --- |
+| `title` | `PowerFlo` | Title, up to 60 characters |
+| `inverter_name` | `Inverter` | Name/brand, up to 40 characters |
+| `inverter_model` | Empty | Model, up to 80 characters; hidden when empty |
+| `inverter_capacity_kw` | `12` | Rated AC power label, 0.1–1,000 kW; set your rating |
+| `battery_capacity_kwh` | `32.14` | Effective energy for estimates, 0.1–10,000 kWh; update after expansion |
+| `solar_capacity_kw` | `0` | DC array nameplate in kWp, 0–10,000; zero hides it |
+| `inverter_image` | Empty | Default illustration or supported local/raster data URL |
+| `clock_format` | `"12"` | AM/PM or `"24"`; HA timezone |
+| `battery_positive` / `grid_positive` | `discharge` / `import` | Positive-power meanings |
+| `flow_threshold_w` / `flow_release_w` | `40` / `20` | Activation and battery/grid release thresholds; release cannot exceed activation |
+| `battery_reserve_soc` | `20` | Runtime reserve, 0–100%; not an inverter command |
+| `battery_charge_target_soc` | `100` | Charging estimate goal, 1–100% |
+| `runtime_window_minutes` | `5` | Averaging window, 1–60 minutes |
+| `runtime_max_sample_age_seconds` | `60` | Battery sample age/gap limit, 5–300 seconds |
+| `charge_taper_start_soc` | `90` | Assumed taper start, 50–99% |
+| `charge_taper_floor_ratio` | `0.2` | Assumed power ratio at full, 0.05–1 |
+| `solar_projection_hours` | `4` | Supply horizon, 0–24 hours; capped at sunset when available |
 
-Alternatively, copy a raster image into `www/powerflo/` and configure:
+Upload PNG/JPEG/WebP up to 2 MB and 4096 × 4096 pixels. The image is embedded in card configuration. Alternatively use a raster image under `www/` with a `/local/` path. External URLs, active URLs and SVG uploads are rejected. Use transparent PNG/WebP if you want the image itself to blend into the dashboard.
 
-```yaml
-inverter_image: /local/powerflo/inverter.png
-```
+Panels are transparent and shadow-free. Text/borders inherit HA theme variables. Themes can override `--powerflo-solar-color`, `--powerflo-grid-color`, `--powerflo-battery-color` and `--powerflo-load-color`; check contrast against your background.
 
-Existing `/api/image/serve/` paths are also accepted. Remote image URLs and SVG uploads are not accepted. Use transparent PNG/WebP art to preserve the background. Do not place secrets in `www/`; Home Assistant serves `/local/` files without authentication.
+## Grid states
 
-### Battery expansion
+| Condition | Display |
+| --- | --- |
+| Fresh connection true and numeric power | Importing, exporting or static, with measured power |
+| Fresh connection false | **Disconnected**; no grid flow, and retained measurements are not shown as live |
+| Fresh connection unknown | **Unavailable**; connection unknown and flow paused |
+| Stale/unavailable telemetry | **Stale/Unavailable**; last-reported connection labelled and flow paused |
 
-Update `battery_capacity_kwh` when installed capacity changes. Capacity is manually configured, not discovered from the BMS. This version displays one aggregate bank; separate battery modules, module SOC, and balancing are not represented. Confirm your integration still exposes aggregate bank readings after expansion.
+A disconnected port is not automatically proof of a utility outage. The card reports your mapped connection entity. Zero power on a connected grid stays Static, not Disconnected.
 
-### Responsive layouts
+## Battery forecasts
 
-The card implements both masonry sizing and Sections grid sizing. Use a wide card/section for the full topology. Below **58 rem of card-container width**, connectors and particles are hidden and nodes rearrange; below **34 rem**, nodes stack. Narrow layouts still display live values, both battery forecasts, and period selectors, but currently do not show directional arrows. On wide layouts, connector endpoints are measured from actual panel edges so arrows stay aligned after layout changes.
+Both target/full estimates remain visible. A configured goal below 100% is used for the target column; with a 100% goal, the intermediate target is 95%. Full independently projects to 100%. Reaching 95% does not mark full as reached.
 
-## Battery runtime estimate
+Runtime is effective capacity × `(SOC − reserve) / 100`, divided by smoothed battery-side discharge power. Charging uses measured net charge, solar-supply assumptions and configurable upper-SOC taper. Net charge already includes solar; solar is not added twice.
 
-The battery outlook strip displays **Runtime to reserve** and its basis, for example `To 20% reserve · 512 W recent average`. This is time to the selected reserve at recent battery discharge, not guaranteed outage duration or time to zero SOC.
+While charging or idle, runtime says Not discharging and labels the discharge reserve separately. During discharge it shows duration until that reserve. Battery details retains 50/75/95 milestones, the configured-goal forecast, runtime, confidence and assumptions.
 
-```text
-Energy remaining (kWh) = capacity_kWh × max(SOC − reserve_SOC, 0) / 100
-Runtime (hours)        = energy_remaining_kWh / (average_discharge_W / 1000)
-```
+Confidence describes observation quality, not a calibrated probability of finishing on time. Missing/stale samples pause estimates. Taper and future solar are assumptions, not battery specifications. Keep capacity and assumptions accurate; none of these settings change actual inverter charging behavior.
 
-Discharge power is averaged by elapsed time using the battery entity's `last_reported` timestamp when exposed to the frontend, otherwise `last_updated`, and a rolling five-minute window by default. Each sample is held until the next sample; unrelated HA updates do not count as new observations. At least 30 seconds of continuous discharge observation is required. Samples collect while the card is loaded; reopening the card starts a new window. Recorder backfill and learned effective capacity are not implemented.
+## History and recent demand
 
-The estimator uses the configured `battery_capacity_kwh`. Keep this aligned with effective bank capacity across the SOC scale; do not deduct reserve twice by supplying capacity already reduced for that reserve. Battery-side power already reflects DC draw for the actual inverter operation, so an extra inverter-efficiency factor is not applied to runtime.
+Today uses daily-energy Recorder samples from HA local midnight plus fresh endpoints. Week covers seven local calendar days including today; Month starts at local midnight on the first of this month. Week/Month use completed hourly long-term energy statistics, not guessed raw-power totals.
 
-For an illustrative 32.14 kWh bank at 85% SOC, with 20% reserve and 512 W average discharge: remaining energy is 20.891 kWh and runtime is approximately **40 h 48 min**. Actual time varies with loads, solar contribution, battery ageing, temperature, BMS limits, and SOC accuracy. Solar assistance can extend this estimate; it is not a separate no-solar backup forecast.
-
-Lifecycle states are explicit:
-
-- **Collecting discharge data** while the window warms up.
-- **Charging** or **Not discharging** when a depletion estimate is inappropriate.
-- **Reserve reached** at/below reserve during discharge.
-- **Unavailable** for stale gateway data, invalid SOC/power, absent timestamps, or power samples older than the configured maximum age.
-
-Charging, static operation, stale data, configuration changes, and excessive sample gaps reset the discharge window. A timer checks sample age even when HA stops sending updates. Set the maximum age longer than the normal telemetry interval, with a reasonable margin; the default suits polling faster than one minute. This checks the power entity's age in addition to the existing gateway freshness mapping. If an integration suppresses identical power states and exposes no refreshed report timestamp, a stable reading can become unavailable here; confirm timestamp behavior during commissioning rather than replacing timestamps with unrelated dashboard updates.
-
-Edit reserve and averaging settings in the visual editor under **Flow behavior**, or use the YAML keys in the configuration table. Choose reserve for the meaning you want to show; match it to an actual off-grid limit or a higher preferred margin. The card never writes the inverter's shutdown/TOU configuration.
-
-## Time-to-Full
-
-The battery panel keeps **target and full estimates visible together**. The intermediate target is your configured `battery_charge_target_soc` when below 100%, or 95% when the configured goal is 100%. Full always projects to 100% independently; reaching a lower target does not mark full as reached. Battery details retains reserve runtime, **50%, 75%, 95%**, and the configured-goal forecast, with confidence and assumptions. Otherwise the model combines the independent recent net-charge average with solar-source and SOC-taper assumptions. It is an estimate, not a guaranteed completion time.
-
-While charging, the estimator uses **battery-side net charging power**, normalized using `battery_positive`, and a time-weighted charging average separate from the discharge window:
-
-```text
-Energy needed (kWh) = effective_capacity_kWh × max(target_SOC − SOC, 0) / 100
-Time to target (h)  = energy_needed_kWh / (average_net_charge_W / 1000)
-```
-
-The default target is 100%. At 85% SOC, 32.14 kWh capacity, and 2 kW net charging, the constant-rate estimate to 100% is **2 h 24 min**. This assumes the same charging rate continues and is not a forecast of taper completion. A lower target is display-only and does not configure the inverter's charging target.
-
-Net battery input power should not be confused with gross PV generation or grid import: household demand consumes part of those inputs. If using net battery-side power, avoid multiplying by inverter conversion efficiency again. A calibrated battery energy-retention factor could be added if measurements show a systematic charge-side bias.
-
-Near full, BMS limits, balancing, and taper can extend the time. The implemented model reduces future charge power linearly above `charge_taper_start_soc` (default 90%), reaching `charge_taper_floor_ratio` (default 0.2 of the untapered rate) at 100%. These are configurable scenario assumptions, **not verified Pylontech/Fidus specifications**. Future taper is normalized to the current SOC factor so observed taper is not applied twice. The model integrates energy across 0.25%-SOC steps:
-
-```text
-Time to target (h) ≈ Σ [effective_capacity_kWh × SOC_band_width / 100
-                        ÷ expected_net_charge_kW_in_that_band]
-```
-
-Net battery charge already includes PV and loads; the card never adds gross solar power to it again. For future supply it approximates the current solar fraction as `solar_power / (solar_power + grid_import_power)`, then applies that fraction to measured net charge. This proportion is not a measurement of routed PV energy.
-
-Current solar is assumed available for `solar_projection_hours` (default four hours), capped at `sun.sun`'s next sunset when available. Below the horizon, solar availability is zero. After the horizon only the modeled non-solar share remains. If supply cannot reach a target within the supported seven-day projection, the label is **Needs more solar**, not infinity.
-
-Optionally map `entities.solar_forecast_power` to a sensor whose value is expected **average PV power in W over the configured horizon**. Reports up to one hour old are accepted; forecast declines reduce supply, while increases above current supply are conservatively ignored. Do not map energy in kWh, peak power, or an unrelated forecast interval. Creating/validating that sensor is outside the card's scope.
-
-```yaml
-charge_taper_start_soc: 90
-charge_taper_floor_ratio: 0.2
-solar_projection_hours: 4
-entities:
-  # Merge with the required existing entity mappings:
-  solar_forecast_power: sensor.expected_average_pv_power_next_4_hours
-```
-
-Current states also include **Collecting charge data**, **Not charging**, **Target reached**, and **Unavailable**. Inactive/stale/reversed sessions reset the charge window. Learned battery-specific taper and future household-load prediction are not implemented. The 2 h 24 min constant-rate example above is a baseline comparison; the solar/taper model can show a longer duration.
-
-### Estimate confidence
-
-**High**, **Moderate**, and **Limited** describe data quality, not calibrated probabilities. Confidence considers observation duration, sample count/age, and time-weighted rate variability. High needs at least 80% of the configured window, three samples, variation below 15%, and age at most 15 seconds. Moderate needs 60 seconds observed, variation below 35%, and age at most 30 seconds. Other ready estimates are Limited.
-
-Solar/taper estimates are capped at Moderate because future assumptions are uncalibrated; missing current solar data caps them at Limited. Expand **Estimate confidence and assumptions** for the basis. Inactive estimates have no confidence label.
-
-## Recorder history behavior
-
-Use the **Today / Week / Month** buttons to change all four summary graphs together. The live topology and forecasts remain current, independent of the selected period.
-
-| View | Range in Home Assistant's timezone | Displayed energy |
-|---|---|---|
-| Today | Local midnight to now | Current daily energy counter, with its recorded trend. |
-| Week | Six preceding local days plus today | Cumulative hourly long-term energy changes. |
-| Month | First local day of the current month to now | Cumulative hourly long-term energy changes. |
-
-Today reads Recorder history and current `*_today` entities. Week/Month use **long-term statistics**, requesting hourly `change` values in **kWh** through the authenticated WebSocket API. HA's accumulated statistics handle counter resets; the card no longer reconstructs Week/Month energy by summing raw daily maxima.
-
-Supply optional `statistics` mappings to energy statistics with `has_sum` support. If omitted, the card tries the corresponding `*_today` entity's statistic ID and validates its metadata. No statistics are created or modified:
+If statistics IDs differ from your daily-counter entities, configure them explicitly:
 
 ```yaml
 statistics:
-  solar: sensor.deye_solar_energy_total
-  grid: sensor.deye_grid_import_energy_total
-  load: sensor.deye_load_energy_total
-  battery: sensor.deye_battery_discharge_energy_total
+  solar: sensor.solar_energy_total
+  grid: sensor.grid_import_energy_total
+  load: sensor.load_energy_total
+  battery: sensor.battery_discharge_energy_total
 ```
 
-These are examples. Check **Developer tools → Statistics** for actual IDs. Missing or non-energy sum statistics show **Energy statistics not configured**; mean power/SOC cannot substitute for energy.
+Statistics need energy units and sum support. Missing hours/counters are labelled partial; statistics paths split at gaps. The unfinished hour is not extrapolated. Inspect observations with pointer/touch or the keyboard time slider; Escape clears inspection.
 
-Only completed hours are included; the unfinished hour is not extrapolated. Summaries say **Statistics through [time]**. Missing/invalid/negative changes and intervals are marked **Partial**; duplicates are ignored. Totals depend on upstream statistics correctness and are not billing guarantees. All graphs use fixed axes; missing history is never fabricated.
+Recent demand is a separate trailing 15-minute window of `load_power`. Average is time-weighted over covered intervals; peak is the maximum trustworthy observation. Recorder backfills one entity at most once per minute per card. A reading holds to the next state but for no more than 60 seconds. Missing time is not zero demand or an indefinite hold. Partial averages show coverage; failures retain observed samples and expose a retry independent of energy-history retry.
 
-Ensure Today sensors are recorded. Week/Month use retained hourly long-term statistics, so 35-day raw-history retention is not required for those views. Statistics never collected or deleted cannot be recovered by the card. See [Recorder](https://www.home-assistant.io/integrations/recorder/) and [long-term statistics requirements](https://developers.home-assistant.io/docs/core/entity/sensor/#long-term-statistics).
-
-At least two numeric points are needed for a line. Period/hour requests are cached with stale responses ignored. Live counters extend Today only, avoiding double counting in Week/Month statistics. Date/hour rollover is checked every minute and on HA updates. Today waits for a current-day counter timestamp after midnight.
-
-Loading is announced, history failures expose a **Retry history** button, and unmapped sensors display **Map an energy entity**. Live Home Assistant history performance and midnight rollover remain commissioning tasks.
-
-### Interactive inspection
-
-Move over a graph, drag/touch it, or use **Inspect recorded time**. The slider supports keyboard arrows and visible focus. All charts share the selected time; each readout shows the nearest recorded value and its own timestamp, rather than an interpolated fabricated measurement. Missing series show **No sample**.
-
-## Updates and removal
-
-To update, download both files from the release or build with `npm ci` and `npm run verify`, replace both installed JavaScript and image, and change the resource query string to a fresh cache key, such as `?v=0.2.1`. Reload the browser and refresh the companion app's frontend cache if needed.
-
-To remove PowerFlo, remove its cards, resource registration, installed JavaScript, and any images you no longer use. The inverter integration and entities remain independent of the card.
-
-## Troubleshooting
-
-| Symptom | Check |
-|---|---|
-| `Custom element doesn't exist: powerflo-card` | Open the resource URL. Confirm the bundle exists, is JavaScript, and is registered as a module. Reload with a new cache key. |
-| Resource returns 404 | Verify the active config directory and `www/powerflo/` path; restart HA if `www/` was just created. |
-| `Missing required entity` | Supply all eight mappings using the Manual card editor. |
-| Reading shows `—` | Check the entity ID and numeric state in Developer tools. |
-| Battery or grid direction is reversed | Correct `battery_positive` or `grid_positive` using real signed readings. |
-| Status unavailable or motion paused | Check freshness, power sensor availability, thresholds, reduced motion, and whether the card/tab is visible. |
-| Values differ by a factor of 1,000 | Inputs must be W and kWh. Convert kW/Wh upstream. |
-| No arrows on a phone | The current layout hides connectors below 58 rem. Use a wider card for topology. |
-| Week/Month reports partial coverage | Check collected long-term energy statistics and missing hours. Raw-history retention cannot restore missing statistics. |
-| Energy statistics not configured | Map an energy statistic with sum support using the visual editor or `statistics`. |
-| Time-to-Full is unavailable | Check net charge power, SOC, freshness and sensor timestamps; allow 30 seconds after charging starts. |
-| Today total works but no graph | Check optional daily mappings, Recorder history, and availability of two numeric points. |
-| Image missing | Check supported type, size, dimensions, local URL, and file existence. |
-| Background visible except behind artwork | The selected image may be opaque; use transparent PNG/WebP. |
-
-For issue reports, include Home Assistant/browser versions, PowerFlo commit, sanitized configuration, entity units/states, and browser console errors. Never share tokens or credentials.
-
-## Developer commands and fixture
-
-| Command | Purpose |
-|---|---|
-| `npm run build` | Generate the browser bundle and source map. |
-| `npm run dev` | Watch source changes and rebuild. |
-| `npm run lint` | Run ESLint. |
-| `npm test` | Run unit tests. |
-| `npm run test:coverage` | Check core-module coverage. |
-| `npm run verify` | Run lint, coverage, and build. |
-
-After building, serve the repository root with a local HTTP server. If Python is installed:
+## Offline demo
 
 ```bash
-python3 -m http.server 4173 --bind 127.0.0.1
+npm run build:demo
 ```
 
-Open `http://127.0.0.1:4173/demo/`. The fixture uses simulated values; it is not connected to an inverter.
+Share `dist/PowerFlo-demo-v0.3.0.html` alone. JavaScript, styles, the PNG and MIT notice are embedded. Open it in a browser without a server, HA, Node or internet. Email previews may not run JavaScript; download and open the file instead.
 
-```text
-src/                 Card, editor, tokens, state, flow, history
-test/                Core unit tests
-demo/                Simulated browser fixture
-assets/              Design mockup
-dist/                Generated bundle, excluded from Git
-graphify-out/         Code graph and extraction state
-.github/workflows/    Verification configuration
-PRD.md               Product scope
-DESIGN.md            Design decisions
-Task Checklist.md    Acceptance work
-task-status.md        Progress
-changelog.md          Changes
-chatlog.md            Engineering record
-```
+Try battery modes, connected/disconnected/unknown/stale grid states, themes, periods and chart inspection. Customize system exposes the native editor for identity, ratings, battery/solar size, image and behavior. Preview settings stay in memory: they are not saved into the HTML or sent to hardware. Use raster upload rather than an HA-only image URL when offline.
 
-See [SECURITY.md](SECURITY.md) for the read-only implementation boundary and [Task Checklist.md](Task%20Checklist.md) for outstanding verification.
+The fixture is labelled simulated and has no live HA connection or credentials. Its Content Security Policy blocks external connections/assets. Review any local fixture edits before sharing. The HTML is not an HA installation resource.
 
-## Repository technology
+## Update and troubleshoot
 
-1. The build system is Rollup 4.
-2. The frontend is a standards-based Web Component.
-3. The language is modern JavaScript with JSDoc.
-4. There is no backend or database.
-5. Authentication is inherited from the Home Assistant frontend.
-6. There is no payment system.
-7. Distribution is designed for HACS and Home Assistant dashboard resources.
-8. Verification runs through GitHub Actions.
-9. Unit tests use Vitest 5 with Happy DOM.
-10. The production card has zero runtime package dependencies.
+Replace both installation files, change the module's cache key to the installed version, and reload the frontend/companion app cache. Custom element missing? Check the resource URL and browser console. Image missing? Keep the PNG beside the JS or check your custom path.
 
-## License
+Reversed arrows? Verify polarity against source readings. Grid unavailable? Check connection mapping rather than substituting zero. Estimates not warming up? Check freshness, battery timestamps and at least 30 seconds of continuous samples. Empty graphs? Check Recorder inclusion, units and sum-capable statistics. Never post tokens, passwords or private readings in an issue.
 
-MIT
+To uninstall, remove the card and resource, then its two installed files. No inverter configuration needs undoing.
 
-## Offline demo export
+## Development and limitations
 
-Run `npm run build:demo` from the project root to generate `dist/PowerFlo-demo-v0.2.1.html` (the filename follows the package version). `npm run verify` now also builds this export. Share **only that HTML file**; recipients can open it in a modern browser without Home Assistant, Node, a local server or internet access. Download/open the attachment in a browser—email attachment previews may not execute JavaScript.
+`npm run verify` runs ESLint, Vitest coverage, Rollup and the offline exporter. Source is in `src/`, tests in `test/`, the fixture in `demo/`, and export tooling in `scripts/`. Build output is Git-ignored. No TypeScript or runtime frontend library is required.
 
-The exporter bundles the actual card/editor and simulated fixture into one inline script, includes the existing styles, and embeds the original PNG byte-for-byte as a data URI. It preserves default-art connector bounds rather than treating the embedded default art as a custom upload. Theme switching, battery modes, target/full estimates, Battery details, recent demand, Today/Week/Month and chart inspection remain available. The file is clearly labelled simulated and contains no HA connection or credentials. Its Content Security Policy blocks network connections and external assets. The dark/light canvas belongs to the demo; the card surfaces remain transparent.
+Automated/simulated checks are not hardware commissioning. Validate your live HA instance, entity mappings, statistics and battery taper assumptions. The card does not increase upstream polling or make a stale integration live.
 
-The export is a demo, **not a Home Assistant installation resource**. Continue installing the two production files from the release for HA. The locally generated demo includes current source changes; its package-version filename does not modify a previously published release.
+## License and artwork
 
-The reserve runtime display now says `Not discharging (charging)` or `Not discharging (idle)` with `Discharge reserve: 20%` while inactive. During discharge it shows a duration with `Until 20% reserve`. Reserve affects the discharge-runtime calculation; target/full remain separate charging projections, and no display setting changes inverter instructions.
+MIT; see [LICENSE](LICENSE). Copyright © 2026 PowerFlo contributors. Keep the copyright and permission notice when redistributing software; the generated demo and production JS include it.
 
-## Refined display and interaction
-
-PowerFlo inherits HA fonts; all display panels remain transparent. Large readings have smaller units. Topology icons share one SVG family; summaries have no icons. Battery SOC and power sit side by side above the visible target/full estimates. Secondary estimates remain in Battery details, sorted and deduplicated. Completed milestones say `Reached`; the configured goal says `Target reached`. Reserve runtime also appears as a compact line while discharging. Inverter identity sits beneath the image, clear of the connector lane.
-
-Protected load has a separate trailing 15-minute power graph, time-weighted average and observed peak. These use `entities.load_power`, not the energy counters. Recorder must include that entity for backfilled demand history. One bounded read is attempted at most once per minute per card; available live reports still contribute if Recorder fails. Holds are limited to 60 seconds, unavailable readings split coverage, and partial averages are labelled. Missing history is not zero load. Energy-history period selection does not change this recent-demand window. See [BALANCED-PANELS.md](BALANCED-PANELS.md) for formulas, state semantics and implementation limits.
-
-Hover or touch graphs to inspect actual observations with a shared cursor, point markers and compact time/value tooltips. First touch pins inspection; keyboard arrows operate the native range control and Escape clears it. Missing statistics intervals split paths instead of inventing continuity. Period totals remain visible during inspection.
-
-Text updates immediately. Limited opacity feedback lasts 160 ms, runs at most once per element per 30 seconds, and skips small numeric changes. Flow-speed changes preserve particle position. Stale, hidden and reduced-motion states stop animation work; mobile layouts without connectors stop invisible flow loops.
-
-Theme authors may override `--powerflo-solar-color`, `--powerflo-grid-color`, `--powerflo-battery-color` and `--powerflo-load-color`. Recheck contrast against your actual background after overrides. No external font request was added.
-
-See [VISUAL-REFINEMENTS.md](VISUAL-REFINEMENTS.md) for the six-part review and verification limits. Installation and forecast formulas remain unchanged. The dated reference stays fixed; `assets/current-design.png` is the simulated implementation preview.
+The transparent PNG is an AI-generated illustration, not an official manufacturer photograph, enclosure specification or certification. Model/name labels are user configuration; PowerFlo claims no manufacturer affiliation.

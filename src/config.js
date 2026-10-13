@@ -13,6 +13,7 @@
  * @property {string} inverter_model Visible inverter model.
  * @property {number} inverter_capacity_kw Rated inverter power.
  * @property {number} battery_capacity_kwh Installed battery capacity.
+ * @property {number} solar_capacity_kw Installed DC array nameplate in kWp; zero leaves the label hidden.
  * @property {number} battery_reserve_soc Runtime estimate's reserve SOC, percent.
  * @property {number} battery_charge_target_soc Time-to-full/target SOC, percent.
  * @property {number} runtime_window_minutes Time-weighted averaging window.
@@ -33,11 +34,12 @@
 /** @type {Readonly<PowerFloConfig>} */
 export const DEFAULT_CONFIG = Object.freeze({
   type: "custom:powerflo-card",
-  title: "Deye Energy",
-  inverter_name: "DEYE",
-  inverter_model: "SUN-12K-SG02LP1-EU-AM3",
+  title: "PowerFlo",
+  inverter_name: "Inverter",
+  inverter_model: "",
   inverter_capacity_kw: 12,
   battery_capacity_kwh: 32.14,
+  solar_capacity_kw: 0,
   battery_reserve_soc: 20,
   battery_charge_target_soc: 100,
   runtime_window_minutes: 5,
@@ -130,6 +132,7 @@ export function normalizeConfig(input = {}) {
     inverter_model: String(input.inverter_model ?? DEFAULT_CONFIG.inverter_model).slice(0, 80),
     inverter_capacity_kw: finiteInRange(input.inverter_capacity_kw, DEFAULT_CONFIG.inverter_capacity_kw, 0.1, 1000),
     battery_capacity_kwh: finiteInRange(input.battery_capacity_kwh, DEFAULT_CONFIG.battery_capacity_kwh, 0.1, 10000),
+    solar_capacity_kw: finiteInRange(input.solar_capacity_kw, DEFAULT_CONFIG.solar_capacity_kw, 0, 10000),
     battery_reserve_soc: finiteInRange(input.battery_reserve_soc, DEFAULT_CONFIG.battery_reserve_soc, 0, 100),
     battery_charge_target_soc: finiteInRange(input.battery_charge_target_soc, DEFAULT_CONFIG.battery_charge_target_soc, 1, 100),
     runtime_window_minutes: finiteInRange(input.runtime_window_minutes, DEFAULT_CONFIG.runtime_window_minutes, 1, 60),

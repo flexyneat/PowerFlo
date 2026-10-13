@@ -24,6 +24,7 @@ export function escapeInlineScript(code) {
 export async function standaloneHtml(rootDir = PROJECT_ROOT) {
   const root=resolve(rootDir);
   const template=await readFile(resolve(root,"demo/index.html"),"utf8");
+  const license=await readFile(resolve(root,"LICENSE"),"utf8");
   const entries=[...template.matchAll(/<script type="module">([\s\S]*?)<\/script>/g)];
   if (entries.length!==1) throw new Error("Demo export requires exactly one inline module entry");
   const entry=resolve(root,"demo/.offline-entry.js");
@@ -52,6 +53,7 @@ export async function standaloneHtml(rootDir = PROJECT_ROOT) {
     if (output.some(chunk=>chunk.type!=="chunk")) throw new Error("Offline export unexpectedly produced an external asset");
     const policy="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'";
     return template.replace(entries[0][0],()=>`<script>\n${escapeInlineScript(script)}\n</script>`)
+      .replace("<!doctype html>",`<!doctype html>\n<!--\n${license.replaceAll("--","- -")}\n-->`)
       .replace('<meta charset="utf-8">',`<meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${policy}">`);
   } finally {
     await bundle.close();
