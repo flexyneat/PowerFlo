@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0 — 2026-10-13
+
+- Bump package and lockfile versions from 0.1.0 to 0.2.0 for the accumulated feature and design refinements below.
+- Prepare standalone JavaScript and inverter-image release assets, installation instructions and commissioning limitations in RELEASE-NOTES.md.
+- Reverify 84 tests, lint, measured core coverage and production build. GitHub publication awaits repository visibility selection; no remote existed at preparation time.
+
 ## Unreleased
 
 - Implement all six approved refinements: typography, unified icons, aligned composition, runtime/milestone rail, actual-observation chart inspection and restrained motion.
