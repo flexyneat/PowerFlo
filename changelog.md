@@ -10,6 +10,10 @@
 
 ## Unreleased
 
+- Implement the approved balanced battery/load design: side-by-side SOC/power, both target and full visible, secondary forecasts in Battery details, and inverter caption clear of lower wires.
+- Add read-only trailing 15-minute protected-load history, time-weighted average, observed peak, conservative gap coverage and independent retry.
+- Keep full projection independent of lower configured target; preserve all existing customization, estimates, statistics, flow and inspection features.
+
 - Implement all six approved refinements: typography, unified icons, aligned composition, runtime/milestone rail, actual-observation chart inspection and restrained motion.
 - Split statistics paths across missing intervals; preserve flow phase on rate changes; cancel stale text animations; support first-touch inspection and sorted/deduplicated SOC goals.
 - Verify 84 tests, lint, coverage and build, transparent light/dark and responsive fixtures; document the approved 4× CPU/Fast 4G local repeat-load trace (181 ms LCP, 0.00 CLS; INP unavailable).

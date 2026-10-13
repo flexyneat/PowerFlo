@@ -25,7 +25,8 @@ PowerFlo reads Home Assistant entities. It does not connect to Modbus, call Home
 - Reversible solar, grid, battery, and load arrows driven by current power state.
 - Freshness-gated transform-only flow particles.
 - Rounded, image-safe routes with small reversible directional chevrons; default endpoints align to the visible enclosure, not transparent image padding. Uploaded art uses conservative full-image bounds.
-- State-aware illustrations sit above a connected milestone rail, with runtime separate; narrow layouts use a two-column milestone group. Energy summaries remain icon-free.
+- Side-by-side battery SOC/power and always-visible target/full estimates; reserve runtime, milestones and assumptions remain in Battery details.
+- Protected-load recent 15-minute power trend, time-weighted average, observed peak and explicit coverage/retry states.
 - Solar, Grid, Load, and Battery energy histories with Today, Week, and Month views; Week/Month use validated long-term statistics.
 - Shared pointer, touch, and keyboard chart inspection with actual observation timestamps.
 - Editable title, inverter identity, ratings, clock format, and safe local raster image upload.
@@ -305,7 +306,7 @@ Edit reserve and averaging settings in the visual editor under **Flow behavior**
 
 ## Time-to-Full
 
-The battery outlook strip shows charging milestones for **50%, 75%, 95%**, and **full** (or your configured `battery_charge_target_soc`). A milestone already reached is labelled **Target reached**. Otherwise the model combines the independent recent net-charge average with solar-source and SOC-taper assumptions. It is an estimate, not a guaranteed completion time.
+The battery panel keeps **target and full estimates visible together**. The intermediate target is your configured `battery_charge_target_soc` when below 100%, or 95% when the configured goal is 100%. Full always projects to 100% independently; reaching a lower target does not mark full as reached. Battery details retains reserve runtime, **50%, 75%, 95%**, and the configured-goal forecast, with confidence and assumptions. Otherwise the model combines the independent recent net-charge average with solar-source and SOC-taper assumptions. It is an estimate, not a guaranteed completion time.
 
 While charging, the estimator uses **battery-side net charging power**, normalized using `battery_positive`, and a time-weighted charging average separate from the discharge window:
 
@@ -467,7 +468,9 @@ MIT
 
 ## Refined display and interaction
 
-PowerFlo inherits HA fonts; all display panels remain transparent. Large readings have smaller units. Topology icons share one SVG family; summaries have no icons. Runtime is separate from the connected charging milestones. Targets are sorted and duplicate SOC goals are collapsed. Completed milestones say `Reached`; the configured goal says `Target reached`.
+PowerFlo inherits HA fonts; all display panels remain transparent. Large readings have smaller units. Topology icons share one SVG family; summaries have no icons. Battery SOC and power sit side by side above the visible target/full estimates. Secondary estimates remain in Battery details, sorted and deduplicated. Completed milestones say `Reached`; the configured goal says `Target reached`. Reserve runtime also appears as a compact line while discharging. Inverter identity sits beneath the image, clear of the connector lane.
+
+Protected load has a separate trailing 15-minute power graph, time-weighted average and observed peak. These use `entities.load_power`, not the energy counters. Recorder must include that entity for backfilled demand history. One bounded read is attempted at most once per minute per card; available live reports still contribute if Recorder fails. Holds are limited to 60 seconds, unavailable readings split coverage, and partial averages are labelled. Missing history is not zero load. Energy-history period selection does not change this recent-demand window. See [BALANCED-PANELS.md](BALANCED-PANELS.md) for formulas, state semantics and implementation limits.
 
 Hover or touch graphs to inspect actual observations with a shared cursor, point markers and compact time/value tooltips. First touch pins inspection; keyboard arrows operate the native range control and Escape clears it. Missing statistics intervals split paths instead of inventing continuity. Period totals remain visible during inspection.
 

@@ -37,6 +37,10 @@
       const ids = query.searchParams.get("filter_entity_id").split(",");
       return ids.map(id => {
         const key = Object.keys(entities).find(key => entities[key] === id);
+        // Explicitly simulated instantaneous demand, distinct from cumulative energy traces.
+        if (key === "load_power") return Array.from({length:61},(_,index)=>({entity_id:id,
+          state:String(index===60 ? values.load_power : 2300+500*Math.sin(index*.7)+(index===42?1300:0)),
+          last_changed:new Date(start+(end-start)*index/60).toISOString()}));
         const maximum = Number(values[key]);
         const output = [];
         for (let day = start; day <= end; day += 86400000) {

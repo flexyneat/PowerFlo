@@ -54,7 +54,7 @@ describe("battery panel runtime", () => {
     card.updateModel();
     expect(card.shadowRoot.querySelector('[data-meta="battery-runtime"]').textContent).toContain("40 h 48 min");
     expect(card.shadowRoot.querySelector('[data-meta="runtime-basis"]').textContent).toBe("To 20% reserve · 512 W recent average");
-    expect(card.shadowRoot.querySelector('[data-meta="battery"]').textContent).toContain("Discharging");
+    expect(card.shadowRoot.querySelector('[data-battery-status]').textContent).toBe("Discharging");
     card.setConfig({ ...card.config, battery_reserve_soc: 30 });
     card.updateModel();
     expect(card.shadowRoot.querySelector('[data-meta="battery-runtime"]').textContent).toContain("Collecting discharge data");
@@ -72,10 +72,63 @@ describe("battery panel runtime", () => {
 });
 
 describe("visible flow arrows and forecast illustrations", () => {
+  it("keeps configured target and a distinct full estimate in the battery during all states", () => {
+    const card=fixture({battery_positive:"charge",battery_charge_target_soc:95,charge_taper_floor_ratio:1});
+    const power=card.hassValue.states[card.config.entities.battery_power]; power.state="2000";
+    card.updateModel(); vi.advanceTimersByTime(30_000); power.last_updated=new Date().toISOString(); card.updateModel();
+    const root=card.shadowRoot;
+    expect(root.querySelector('[data-meta="battery-target"]').textContent).toBe("1 h 36 min");
+    expect(root.querySelector('[data-meta="battery-full"]').textContent).toBe("2 h 24 min");
+    for (const watts of ["0","-512"]) {
+      power.state=watts; card.updateModel();
+      expect(root.querySelector('[data-meta="battery-target"]').textContent).toBe("Not charging");
+      expect(root.querySelector('[data-meta="battery-full"]').textContent).toBe("Not charging");
+      expect(root.querySelector('.battery-estimates').hidden).toBe(false);
+    }
+    card.hassValue.states[card.config.entities.freshness].state="off"; card.updateModel();
+    expect(root.querySelector('[data-meta="battery-full"]').textContent).toBe("Unavailable");
+  });
+  it("does not animate estimates inside a closed Battery details disclosure", () => {
+    const card=fixture(); card.updateModel(); card.reducedMotion={matches:false};
+    const estimate=card.shadowRoot.querySelector('[data-meta="battery-charge"]');
+    estimate.animate=vi.fn(()=>({cancel(){}}));
+    card.setText('[data-meta="battery-charge"]',"Changed forecast");
+    expect(estimate.animate).not.toHaveBeenCalled();
+  });
+  it("does not confuse a reached charge target with full capacity", () => {
+    const card=fixture({battery_positive:"charge",battery_charge_target_soc:95});
+    card.hassValue.states[card.config.entities.battery_soc].state="95"; card.updateModel();
+    expect(card.shadowRoot.querySelector('[data-meta="battery-target"]').textContent).toBe("Target reached");
+    expect(card.shadowRoot.querySelector('[data-meta="battery-full"]').textContent).not.toBe("Target reached");
+  });
+  it("ignores late recent-load responses after an entity mapping change", async () => {
+    const card=fixture(); let resolve;
+    card.hassValue.callApi=vi.fn(()=>new Promise(done=>{resolve=done;}));
+    const pending=card.loadDemandIfNeeded();
+    const resolveFirst=resolve;
+    card.setConfig({...card.config,entities:{...card.config.entities,load_power:"sensor.new_load"}});
+    resolveFirst([]); await pending;
+    expect(card.demandSamples).toEqual([]);
+  });
+  it("retains live demand during history failure and provides an explicit retry", async () => {
+    const card=fixture(); card.hassValue.states[card.config.entities.load_power].state="3000";
+    card.updateModel(); vi.advanceTimersByTime(30_000);
+    card.hassValue.callApi=vi.fn(async()=>{throw new Error("Recorder unavailable");});
+    await card.loadDemandIfNeeded();
+    expect(card.shadowRoot.querySelector('[data-load-average]').textContent).toBe("3.00 kW");
+    expect(card.shadowRoot.querySelector('.demand-retry').hidden).toBe(false);
+    expect(card.shadowRoot.querySelector('[data-load-coverage]').textContent).toContain("history unavailable");
+  });
   it("separates runtime from four charge milestones and exposes compact recorded-point tooltips", () => {
     const card = fixture(); card.updateModel();
     const root = card.shadowRoot;
-    expect(root.querySelector('.runtime-outlook [data-meta="battery-runtime"]')).not.toBeNull();
+    expect(root.querySelector('.battery .runtime-outlook [data-meta="battery-runtime"]')).not.toBeNull();
+    expect(root.querySelector('.battery .battery-estimates [data-meta="battery-target"]')).not.toBeNull();
+    expect(root.querySelector('.battery .battery-estimates [data-meta="battery-full"]')).not.toBeNull();
+    expect(root.querySelector('.shell > .forecast-strip')).toBeNull();
+    expect(root.querySelector('.battery .estimate-details')).not.toBeNull();
+    expect(root.querySelector('.load [data-load-average]')).not.toBeNull();
+    expect(root.querySelector('.load [data-load-peak]')).not.toBeNull();
     expect(root.querySelectorAll(".milestone-rail .forecast-item")).toHaveLength(4);
     expect(root.querySelectorAll(".summary [data-chart-point]")).toHaveLength(4);
     expect(root.querySelectorAll(".summary .node-icon, .summary .forecast-icon")).toHaveLength(0);
@@ -200,6 +253,15 @@ describe("visible flow arrows and forecast illustrations", () => {
 });
 
 describe("history period interactions", () => {
+  it("keeps energy-history and recent-demand retries independent", () => {
+    const card=fixture();
+    const energy=vi.spyOn(card,"loadHistoryIfNeeded").mockResolvedValue();
+    const demand=vi.spyOn(card,"loadDemandIfNeeded").mockResolvedValue();
+    card.shadowRoot.querySelector('.history-message .retry').click();
+    expect(energy).toHaveBeenCalledWith(true); expect(demand).not.toHaveBeenCalled();
+    energy.mockClear(); card.shadowRoot.querySelector('.demand-retry').click();
+    expect(demand).toHaveBeenCalledWith(true); expect(energy).not.toHaveBeenCalled();
+  });
   it("does not carry yesterday's retained daily counter into a new day", () => {
     const card = fixture();
     card.hassValue.states[card.config.entities.solar_today] = { state: "99", last_updated: "2026-10-11T20:00:00Z" };
@@ -234,7 +296,7 @@ describe("history period interactions", () => {
     card.hassValue.callApi = vi.fn().mockRejectedValueOnce(new Error("Recorder offline")).mockResolvedValue([]);
     await card.loadHistoryIfNeeded();
     expect(card.historyState.status).toBe("error");
-    expect(card.shadowRoot.querySelector(".retry").hidden).toBe(false);
+    expect(card.shadowRoot.querySelector(".history-message .retry").hidden).toBe(false);
     await card.loadHistoryIfNeeded(true);
     expect(card.historyState.status).toBe("ready");
     card.historyKey = "";
