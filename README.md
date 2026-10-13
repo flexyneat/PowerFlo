@@ -42,12 +42,12 @@ npm ci
 npm run verify
 ```
 
-The current source version is **0.4.0**. Build output:
+The current source version is **0.4.1**. Build output:
 
 ```text
 dist/powerflo-card.js
 dist/inverter-reference.png
-dist/PowerFlo-demo-v0.4.0.html
+dist/PowerFlo-demo-v0.4.1.html
 ```
 
 Install the JavaScript and PNG together. The HTML is a demo, not an HA resource; the source map is optional. Source changes do not replace previously published release assets.
@@ -65,13 +65,13 @@ HA serves `www/` files under `/local/`. If you have just created `www/` for the 
 
 ### 3. Register the module
 
-Enable Advanced mode in your user profile. Open **Settings → Dashboards**, then **Resources** in the three-dot menu. Add `/local/powerflo/powerflo-card.js?v=0.4.0` as a **JavaScript module**. For YAML-managed resources:
+Enable Advanced mode in your user profile. Open **Settings → Dashboards**, then **Resources** in the three-dot menu. Add `/local/powerflo/powerflo-card.js?v=0.4.1` as a **JavaScript module**. For YAML-managed resources:
 
 ```yaml
 lovelace:
   resource_mode: yaml
   resources:
-    - url: /local/powerflo/powerflo-card.js?v=0.4.0
+    - url: /local/powerflo/powerflo-card.js?v=0.4.1
       type: module
 ```
 
@@ -206,7 +206,7 @@ Recent demand is a separate trailing 15-minute window of `load_power`. Average i
 npm run build:demo
 ```
 
-Share `dist/PowerFlo-demo-v0.4.0.html` alone. JavaScript, styles, the PNG and MIT notice are embedded. Open it in a browser without a server, HA, Node or internet. Email previews may not run JavaScript; download and open the file instead.
+Share `dist/PowerFlo-demo-v0.4.1.html` alone. JavaScript, styles, the PNG and MIT notice are embedded. Open it in a browser without a server, HA, Node or internet. Email previews may not run JavaScript; download and open the file instead.
 
 Try battery modes, connected/disconnected/unknown/stale grid states, periods and chart inspection. The **Off-Grid** preset simulates a fresh outage: grid flow and solar production stop, and the battery supplies the protected load. Choosing another battery mode restores the connected-grid example; choosing another grid state exits the outage preset.
 

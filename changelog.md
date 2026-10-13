@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.1
 
 - Confirm observed MAIN A028-1727 / HMI 0000-C382 / protocol 0201 identity in README, commissioning guide and read-only profile notes; distinguish identity confirmation from exact-register validation.
 - Add firmware-evidence documentation regression test. Preserve existing decoding, units, polarity, freshness and unknown-state logic rather than apply unsupported firmware-specific overrides.
