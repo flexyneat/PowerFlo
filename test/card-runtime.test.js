@@ -31,6 +31,14 @@ beforeEach(() => {
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe("battery panel runtime", () => {
+  it("labels reserve as a discharge threshold, not a charging destination", () => {
+    const card=fixture({battery_positive:"charge"}); card.updateModel();
+    expect(card.shadowRoot.querySelector('[data-meta="battery-runtime"]').textContent).toBe("Not discharging (charging)");
+    expect(card.shadowRoot.querySelector('[data-meta="runtime-basis"]').textContent).toBe("Discharge reserve: 20%");
+    card.hassValue.states[card.config.entities.battery_power].state="0"; card.updateModel();
+    expect(card.shadowRoot.querySelector('[data-meta="battery-runtime"]').textContent).toBe("Not discharging (idle)");
+    expect(card.shadowRoot.querySelector('[data-meta="runtime-basis"]').textContent).not.toContain("To 20%");
+  });
   it("displays time to full and target reached, with configurable charge target", () => {
     const card = fixture({ battery_positive: "charge", battery_charge_target_soc: 95, charge_taper_floor_ratio: 1 });
     card.hassValue.states[card.config.entities.battery_power].state = "2000";
@@ -53,12 +61,12 @@ describe("battery panel runtime", () => {
     card.hassValue.states[card.config.entities.battery_power].last_updated = new Date().toISOString();
     card.updateModel();
     expect(card.shadowRoot.querySelector('[data-meta="battery-runtime"]').textContent).toContain("40 h 48 min");
-    expect(card.shadowRoot.querySelector('[data-meta="runtime-basis"]').textContent).toBe("To 20% reserve · 512 W recent average");
+    expect(card.shadowRoot.querySelector('[data-meta="runtime-basis"]').textContent).toBe("Until 20% reserve · 512 W recent average");
     expect(card.shadowRoot.querySelector('[data-battery-status]').textContent).toBe("Discharging");
     card.setConfig({ ...card.config, battery_reserve_soc: 30 });
     card.updateModel();
     expect(card.shadowRoot.querySelector('[data-meta="battery-runtime"]').textContent).toContain("Collecting discharge data");
-    expect(card.shadowRoot.querySelector('[data-meta="runtime-basis"]').textContent).toContain("30% reserve");
+    expect(card.shadowRoot.querySelector('[data-meta="runtime-basis"]').textContent).toBe("Discharge reserve: 30%");
   });
   it("honors reverse sign conventions and rejects stale entity timestamps", () => {
     const card = fixture({ battery_positive: "charge" });

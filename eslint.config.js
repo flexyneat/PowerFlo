@@ -12,6 +12,11 @@ const config = [
   },
   js.configs.recommended,
   {
+    files: ["scripts/**/*.js"],
+    languageOptions: { ecmaVersion: "latest", sourceType: "module", globals: globals.node },
+    rules: { "no-eval": "error", "no-implied-eval": "error", "no-new-func": "error" },
+  },
+  {
     files: ["src/**/*.js", "rollup.config.js"],
     languageOptions: {
       ecmaVersion: "latest",

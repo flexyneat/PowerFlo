@@ -466,6 +466,16 @@ See [SECURITY.md](SECURITY.md) for the read-only implementation boundary and [Ta
 
 MIT
 
+## Offline demo export
+
+Run `npm run build:demo` from the project root to generate `dist/PowerFlo-demo-v0.2.1.html` (the filename follows the package version). `npm run verify` now also builds this export. Share **only that HTML file**; recipients can open it in a modern browser without Home Assistant, Node, a local server or internet access. Download/open the attachment in a browser—email attachment previews may not execute JavaScript.
+
+The exporter bundles the actual card/editor and simulated fixture into one inline script, includes the existing styles, and embeds the original PNG byte-for-byte as a data URI. It preserves default-art connector bounds rather than treating the embedded default art as a custom upload. Theme switching, battery modes, target/full estimates, Battery details, recent demand, Today/Week/Month and chart inspection remain available. The file is clearly labelled simulated and contains no HA connection or credentials. Its Content Security Policy blocks network connections and external assets. The dark/light canvas belongs to the demo; the card surfaces remain transparent.
+
+The export is a demo, **not a Home Assistant installation resource**. Continue installing the two production files from the release for HA. The locally generated demo includes current source changes; its package-version filename does not modify a previously published release.
+
+The reserve runtime display now says `Not discharging (charging)` or `Not discharging (idle)` with `Discharge reserve: 20%` while inactive. During discharge it shows a duration with `Until 20% reserve`. Reserve affects the discharge-runtime calculation; target/full remain separate charging projections, and no display setting changes inverter instructions.
+
 ## Refined display and interaction
 
 PowerFlo inherits HA fonts; all display panels remain transparent. Large readings have smaller units. Topology icons share one SVG family; summaries have no icons. Battery SOC and power sit side by side above the visible target/full estimates. Secondary estimates remain in Battery details, sorted and deduplicated. Completed milestones say `Reached`; the configured goal says `Target reached`. Reserve runtime also appears as a compact line while discharging. Inverter identity sits beneath the image, clear of the connector lane.

@@ -432,8 +432,10 @@ export class PowerFloCard extends HTMLElement {
     this.updateForecastIcon("runtime", runtime.status);
     const states = { warming: "Collecting data", charging: "Charging", discharging: "Not charging", static: "Not discharging",
       unavailable: "Unavailable", reserve: "Reserve reached", target: "Target reached" };
-    this.setText('[data-meta="battery-runtime"]', runtime.status === "ready" ? formatRuntime(runtime.hours) : runtime.status === "warming" ? "Collecting discharge data" : states[runtime.status]);
-    this.setText('[data-meta="runtime-basis"]', `To ${this.config.battery_reserve_soc}% reserve${runtime.status === "ready" ? ` · ${Math.round(runtime.averageWatts)} W recent average` : ""}`);
+    const runtimeText = runtime.status === "charging" ? "Not discharging (charging)" : runtime.status === "static" ? "Not discharging (idle)" :
+      runtime.status === "ready" ? formatRuntime(runtime.hours) : runtime.status === "warming" ? "Collecting discharge data" : states[runtime.status];
+    this.setText('[data-meta="battery-runtime"]', runtimeText);
+    this.setText('[data-meta="runtime-basis"]', runtime.status === "ready" ? `Until ${this.config.battery_reserve_soc}% reserve · ${Math.round(runtime.averageWatts)} W recent average` : `Discharge reserve: ${this.config.battery_reserve_soc}%`);
     const forecastEntity = this.hassValue.states[this.config.entities.solar_forecast_power];
     const forecastValue = numericState(this.hassValue.states, this.config.entities.solar_forecast_power);
     const solarFresh = Date.parse(this.hassValue.states[this.config.entities.solar_power]?.last_reported

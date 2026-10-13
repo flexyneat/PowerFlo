@@ -18,6 +18,10 @@
 
 ## Unreleased
 
+- Clarify inactive reserve runtime as Not discharging (charging/idle), with Discharge reserve metadata; active runtime uses Until the reserve threshold. Preserve target/full charging projections and all forecast math.
+- Add `npm run build:demo` and include it in verification: single-file versioned offline HTML with bundled card/fixture/styles, byte-identical embedded PNG and a network-blocking Content Security Policy.
+- Validate file:// operation with Chrome network Offline and preserve mode/theme/history/detail/inspection behavior, transparency and JavaScript-only read-only constraints.
+
 
 - Implement all six approved refinements: typography, unified icons, aligned composition, runtime/milestone rail, actual-observation chart inspection and restrained motion.
 - Split statistics paths across missing intervals; preserve flow phase on rate changes; cancel stale text animations; support first-touch inspection and sorted/deduplicated SOC goals.

@@ -12,11 +12,12 @@
   ],
   "scripts": {
     "build": "rollup --config rollup.config.js",
+    "build:demo": "node scripts/export-demo.js",
     "dev": "rollup --config rollup.config.js --watch",
     "lint": "eslint .",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "verify": "npm run lint && npm run test:coverage && npm run build"
+    "verify": "npm run lint && npm run test:coverage && npm run build && npm run build:demo"
   },
   "engines": {
     "node": ">=22.0.0"
