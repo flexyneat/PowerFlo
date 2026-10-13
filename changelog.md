@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.1 — 2026-10-13
+
+- Implement the approved balanced battery/load design: side-by-side SOC/power, both target and full visible, secondary forecasts in Battery details, and inverter caption clear of lower wires.
+- Add read-only trailing 15-minute protected-load history, time-weighted average, observed peak, conservative gap coverage and independent retry.
+- Keep full projection independent of lower configured target; preserve all existing customization, estimates, statistics, flow and inspection features.
+- Fix independent retry destinations and avoid hidden-disclosure feedback animations.
+- Bump package/lockfile to 0.2.1; update installation URLs and release notes. Verify 98 tests, lint, core coverage and build; ship both installation files.
+
 ## 0.2.0 — 2026-10-13
 
 - Published v0.2.0 to the user-selected private flexyneat/PowerFlo repository with verified JavaScript/image release assets; updated installation documentation. The release tag remains on the verified version-bump commit; publication records are a subsequent documentation commit.
@@ -10,9 +18,6 @@
 
 ## Unreleased
 
-- Implement the approved balanced battery/load design: side-by-side SOC/power, both target and full visible, secondary forecasts in Battery details, and inverter caption clear of lower wires.
-- Add read-only trailing 15-minute protected-load history, time-weighted average, observed peak, conservative gap coverage and independent retry.
-- Keep full projection independent of lower configured target; preserve all existing customization, estimates, statistics, flow and inspection features.
 
 - Implement all six approved refinements: typography, unified icons, aligned composition, runtime/milestone rail, actual-observation chart inspection and restrained motion.
 - Split statistics paths across missing intervals; preserve flow phase on rate changes; cancel stale text animations; support first-touch inspection and sorted/deduplicated SOC goals.

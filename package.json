@@ -1,6 +1,6 @@
 {
   "name": "powerflo-card",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A read-only, live power-flow card for Home Assistant and Deye hybrid inverters.",
   "type": "module",
   "main": "dist/powerflo-card.js",

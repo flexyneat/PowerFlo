@@ -1,6 +1,6 @@
 # PowerFlo
 
-> Early implementation. Version 0.2.0 is published in the private [PowerFlo repository](https://github.com/flexyneat/PowerFlo/releases/tag/v0.2.0); repository access is required. Manual installation is supported; HACS distribution is not validated. Home Assistant 2026.10 remains the intended commissioning environment, with live compatibility still to be validated.
+> Early implementation. Install version 0.2.1 from the private [PowerFlo release](https://github.com/flexyneat/PowerFlo/releases/tag/v0.2.1); repository access is required. Manual installation is supported; HACS distribution is not validated. Home Assistant 2026.10 remains the intended commissioning environment, with live compatibility still to be validated.
 
 PowerFlo is a read-only, live power-flow card for Home Assistant. Its configurable default display profile targets the Deye `SUN-12K-SG02LP1-EU-AM3` with a 32.14 kWh battery bank. The card reads existing Home Assistant entities and Recorder history; install and commission the inverter gateway separately.
 
@@ -67,7 +67,7 @@ HACS is not required for manual installation. Live updates arrive when Home Assi
 
 ### 1. Build the installable bundle
 
-Alternatively, download **both** `powerflo-card.js` and `inverter-reference.png` from the private v0.2.0 release and proceed to step 2. Keep them in the same folder. The build instructions below are for source installations.
+Alternatively, download **both** `powerflo-card.js` and `inverter-reference.png` from the private v0.2.1 release and proceed to step 2. Keep them in the same folder. The build instructions below are for source installations.
 
 From this project's local checkout:
 
@@ -101,7 +101,7 @@ For a dashboard managed through the UI:
 
 1. Enable **Advanced mode** in your Home Assistant profile if Resources is hidden.
 2. Open **Settings → Dashboards** and find **Resources** in the menu.
-3. Add `/local/powerflo/powerflo-card.js?v=0.2.0` with type **JavaScript module**.
+3. Add `/local/powerflo/powerflo-card.js?v=0.2.1` with type **JavaScript module**.
 4. Save and reload the browser/dashboard.
 
 For an existing YAML-managed dashboard resource configuration, merge this entry into your `lovelace.resources` list instead:
@@ -110,7 +110,7 @@ For an existing YAML-managed dashboard resource configuration, merge this entry 
 lovelace:
   mode: yaml
   resources:
-    - url: /local/powerflo/powerflo-card.js?v=0.2.0
+    - url: /local/powerflo/powerflo-card.js?v=0.2.1
       type: module
 ```
 
@@ -387,7 +387,7 @@ Move over a graph, drag/touch it, or use **Inspect recorded time**. The slider s
 
 ## Updates and removal
 
-To update, download both files from the release or build with `npm ci` and `npm run verify`, replace both installed JavaScript and image, and change the resource query string to a fresh cache key, such as `?v=0.2.0`. Reload the browser and refresh the companion app's frontend cache if needed.
+To update, download both files from the release or build with `npm ci` and `npm run verify`, replace both installed JavaScript and image, and change the resource query string to a fresh cache key, such as `?v=0.2.1`. Reload the browser and refresh the companion app's frontend cache if needed.
 
 To remove PowerFlo, remove its cards, resource registration, installed JavaScript, and any images you no longer use. The inverter integration and entities remain independent of the card.
 
