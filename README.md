@@ -1,6 +1,6 @@
 # PowerFlo
 
-> Early implementation. Manual source-build installation is available. No GitHub remote or release is published yet; HACS distribution is not ready. Home Assistant 2026.10 is the intended commissioning environment, with live compatibility still to be validated.
+> Early implementation. Version 0.2.0 is published in the private [PowerFlo repository](https://github.com/flexyneat/PowerFlo/releases/tag/v0.2.0); repository access is required. Manual installation is supported; HACS distribution is not validated. Home Assistant 2026.10 remains the intended commissioning environment, with live compatibility still to be validated.
 
 PowerFlo is a read-only, live power-flow card for Home Assistant. Its configurable default display profile targets the Deye `SUN-12K-SG02LP1-EU-AM3` with a 32.14 kWh battery bank. The card reads existing Home Assistant entities and Recorder history; install and commission the inverter gateway separately.
 
@@ -66,6 +66,8 @@ HACS is not required for manual installation. Live updates arrive when Home Assi
 
 ### 1. Build the installable bundle
 
+Alternatively, download **both** `powerflo-card.js` and `inverter-reference.png` from the private v0.2.0 release and proceed to step 2. Keep them in the same folder. The build instructions below are for source installations.
+
 From this project's local checkout:
 
 ```bash
@@ -98,7 +100,7 @@ For a dashboard managed through the UI:
 
 1. Enable **Advanced mode** in your Home Assistant profile if Resources is hidden.
 2. Open **Settings → Dashboards** and find **Resources** in the menu.
-3. Add `/local/powerflo/powerflo-card.js?v=0.1.0` with type **JavaScript module**.
+3. Add `/local/powerflo/powerflo-card.js?v=0.2.0` with type **JavaScript module**.
 4. Save and reload the browser/dashboard.
 
 For an existing YAML-managed dashboard resource configuration, merge this entry into your `lovelace.resources` list instead:
@@ -107,7 +109,7 @@ For an existing YAML-managed dashboard resource configuration, merge this entry 
 lovelace:
   mode: yaml
   resources:
-    - url: /local/powerflo/powerflo-card.js?v=0.1.0
+    - url: /local/powerflo/powerflo-card.js?v=0.2.0
       type: module
 ```
 
@@ -131,7 +133,7 @@ Compare PowerFlo with Developer tools and the inverter display:
 
 ### HACS installation status
 
-HACS installation is not available yet. The repository has no published remote/release, and `dist/` is generated locally and excluded from Git. Before HACS distribution, the maintainer must publish an accessible repository, supply its built JavaScript in a supported distribution location, validate metadata/filename requirements, and test installation. See [HACS dashboard publishing requirements](https://www.hacs.xyz/docs/publish/plugin/).
+HACS installation is not validated. This repository and release are private, and `dist/` is generated locally and excluded from Git; built installation files are supplied as release assets. Do not assume community HACS availability or private-repository compatibility. Manual release-asset installation is the supported path. Metadata, filename and installation behavior must be tested before claiming HACS support. See [HACS dashboard publishing requirements](https://www.hacs.xyz/docs/publish/plugin/).
 
 ## Development
 
@@ -384,7 +386,7 @@ Move over a graph, drag/touch it, or use **Inspect recorded time**. The slider s
 
 ## Updates and removal
 
-To update, build with `npm ci` and `npm run verify`, replace both installed JavaScript and image, and change the resource query string to a fresh cache key, such as `?v=0.1.0-local2`. Reload the browser and refresh the companion app's frontend cache if needed.
+To update, download both files from the release or build with `npm ci` and `npm run verify`, replace both installed JavaScript and image, and change the resource query string to a fresh cache key, such as `?v=0.2.0`. Reload the browser and refresh the companion app's frontend cache if needed.
 
 To remove PowerFlo, remove its cards, resource registration, installed JavaScript, and any images you no longer use. The inverter integration and entities remain independent of the card.
 
