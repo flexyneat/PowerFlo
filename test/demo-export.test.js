@@ -21,7 +21,9 @@ describe("offline HTML export", () => {
     expect(html).not.toContain("import.meta");
     expect(html).not.toContain("location.origin");
     expect((html.match(/<script>/g)??[]).length).toBe(1);
-    expect(html).toContain("Change theme");
+    expect(html).not.toContain("Change theme");
+    expect(html).toContain("Off-Grid");
+    expect(html).toContain("Switch to dark mode");
     expect(html).toContain("Customize system");
     expect(html).toContain("grid-mode");
     expect(html).toContain("Copyright (c) 2026 PowerFlo contributors");

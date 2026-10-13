@@ -6,6 +6,7 @@
 - Add installed solar-array nameplate size without altering measured production.
 - Distinguish disconnected, unknown and stale grid states; stop grid flow and suppress misleading retained readings during disconnection.
 - Add grid-state controls and system customization to the offline demo.
+- Add an Off-Grid outage preset and an accessible sun/moon toggle with system-first appearance to the demo.
 - Include MIT notices in exported HTML and production JavaScript.
 - Rewrite installation/configuration documentation and remove internal planning, log and graph artifacts from the current repository tree.
 

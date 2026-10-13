@@ -7,15 +7,18 @@
   <style>
     :root{color-scheme:dark;--canvas:#111c28;--primary-text-color:#edf3f8;--secondary-text-color:#aebcc9;--divider-color:#344454;--ha-card-border-color:#526778}
     :root[data-theme="light"]{color-scheme:light;--canvas:#eef2f5;--primary-text-color:#1c2a37;--secondary-text-color:#4f6070;--divider-color:#bac6d1;--ha-card-border-color:#899dac}
+    #theme{inline-size:44px;padding:0;display:inline-grid;place-items:center}#theme svg{inline-size:20px;block-size:20px}#theme svg[hidden]{display:none}
     body{margin:0;padding:24px;background:var(--canvas);color:var(--primary-text-color);font-family:system-ui,sans-serif}main{max-width:1440px;margin:auto}.fixture-controls{display:flex;align-items:center;flex-wrap:wrap;gap:16px;margin-bottom:24px;font-size:14px}.fixture-controls span{margin-right:auto;color:var(--secondary-text-color)}button,select{min-height:44px;padding:8px 16px;background:transparent;color:inherit;border:1px solid var(--divider-color);border-radius:8px;font:inherit}button:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid currentColor;outline-offset:4px}powerflo-card{display:block}.demo-settings{margin-top:16px;border:1px solid var(--divider-color);border-radius:8px;padding:16px}.demo-settings summary{cursor:pointer;min-height:44px;display:flex;align-items:center}.demo-settings p{color:var(--secondary-text-color);font-size:14px}.demo-error{color:var(--secondary-text-color)}@media(max-width:550px){body{padding:12px}}
   </style>
 </head>
-<body><main><div class="fixture-controls"><span>PowerFlo preview · simulated data</span><label>Battery <select id="mode"><option value="charging">Charging</option><option value="discharging">Discharging</option><option value="static">Static</option></select></label><label>Grid <select id="grid-mode"><option value="connected">Connected</option><option value="disconnected">Disconnected</option><option value="unknown">Unknown</option><option value="stale">Stale telemetry</option></select></label><button type="button" id="theme">Change theme</button></div><powerflo-card></powerflo-card><details class="demo-settings"><summary>Customize system</summary><p>Change the title, inverter name/model, ratings, battery capacity, solar array size or image for this simulated preview. Settings are not saved or sent to an inverter.</p><div class="demo-error" role="status"></div><powerflo-card-editor></powerflo-card-editor></details></main>
+<body><main><div class="fixture-controls"><span>PowerFlo preview · simulated data</span><label>Battery <select id="mode"><option value="charging">Charging</option><option value="discharging">Discharging</option><option value="static">Static</option><option value="offgrid">Off-Grid</option></select></label><label>Grid <select id="grid-mode"><option value="connected">Connected</option><option value="disconnected">Disconnected</option><option value="unknown">Unknown</option><option value="stale">Stale telemetry</option></select></label><button type="button" id="theme" aria-label="Switch to dark mode" title="Switch to dark mode"><svg data-theme-icon="dark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M20.5 14A8.5 8.5 0 0 1 10 3.5 8.5 8.5 0 1 0 20.5 14Z"/></svg><svg data-theme-icon="light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true" hidden><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg></button></div><powerflo-card></powerflo-card><details class="demo-settings"><summary>Customize system</summary><p>Change the title, inverter name/model, ratings, battery capacity, solar array size or image for this simulated preview. Settings are not saved or sent to an inverter.</p><div class="demo-error" role="status"></div><powerflo-card-editor></powerflo-card-editor></details></main>
 <script type="module">
   /** @fileoverview Local preview with synthetic sensor updates and daily-reset Recorder responses. */
   import "../dist/powerflo-card.js";
   import { DEFAULT_CONFIG } from "../src/config.js";
   import { periodRange } from "../src/period-history.js";
+  import { demoScenario, initializeTheme } from "./controls.js";
+  initializeTheme(document.documentElement,document.querySelector("#theme"),matchMedia("(prefers-color-scheme: dark)"));
   const card = document.querySelector("powerflo-card");
   const entities = Object.fromEntries(Object.keys(DEFAULT_CONFIG.entities).map(key => [key, `sensor.demo_${key}`]));
   // This explicit example profile is not a claim about the viewer's installed hardware.
@@ -106,19 +109,16 @@
   card.chargeEstimator.samples = [{ time: Date.now() - 30000, watts: 2000 }];
   setInterval(publish, 5000);
   document.querySelector("#mode").addEventListener("change", event => {
-    values.battery_power = event.target.value === "charging" ? -2000 : event.target.value === "discharging" ? 512 : 0;
-    values.solar_power = event.target.value === "discharging" ? 0 : 4820;
-    publish();
-    card.runtimeEstimator.samples = [{ time: Date.now() - 30000, watts: 512 }];
-    card.chargeEstimator.samples = [{ time: Date.now() - 30000, watts: 2000 }];
-  });
-  document.querySelector("#theme").addEventListener("click", () => {
-    document.documentElement.dataset.theme = document.documentElement.dataset.theme === "light" ? "dark" : "light";
+    const grid=document.querySelector("#grid-mode");
+    grid.value=event.target.value==="offgrid" ? "disconnected" : "connected";
+    Object.assign(values,demoScenario(event.target.value,grid.value));
+    publish();seedRates();
   });
   document.querySelector("#grid-mode").addEventListener("change",event=>{
-    values.grid_connected=event.target.value==="disconnected" ? "off" : event.target.value==="unknown" ? "unavailable" : "on";
-    values.freshness=event.target.value==="stale" ? "off" : "on";
-    values.grid_power=event.target.value==="disconnected" ? 0 : 240;
+    const mode=document.querySelector("#mode");
+    // Selecting a different grid state exits the dedicated outage preset.
+    if(mode.value==="offgrid"&&event.target.value!=="disconnected") mode.value="discharging";
+    Object.assign(values,demoScenario(mode.value,event.target.value));
     publish(); seedRates();
   });
 </script></body></html>
