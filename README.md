@@ -2,9 +2,9 @@
 
 A transparent, read-only Home Assistant card for solar, battery, grid and load power flow. Map your existing entities, configure your system's ratings, and see what is supplying your loads now.
 
-![PowerFlo with simulated telemetry](assets/current-design.png)
+![PowerFlo v0.4.1: charging battery estimates, protected-load trend and energy history](assets/current-design.png)
 
-*Preview readings are simulated. PowerFlo does not discover hardware, connect directly to an inverter or change inverter settings.*
+*Captured from the v0.4.1 offline demo; readings are simulated and demo controls are hidden. PowerFlo does not discover hardware, connect directly to an inverter or change inverter settings.*
 
 ## Features
 
