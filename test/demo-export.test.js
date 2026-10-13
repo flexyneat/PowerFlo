@@ -29,7 +29,8 @@ describe("offline HTML export", () => {
     expect(html).toContain("Copyright (c) 2026 PowerFlo contributors");
     const embedded=html.match(/data:image\/png;base64,([a-zA-Z0-9+/=]+)/)[1];
     expect(Buffer.from(embedded,"base64")).toEqual(await readFile(new URL("../assets/inverter-reference.png",import.meta.url)));
-  });
+  // Bundling and coverage instrumentation take longer on shared CI runners; retain every export assertion.
+  }, 30_000);
   it("reports a missing project instead of creating a misleading empty export", async () => {
     await expect(standaloneHtml("/private/tmp/powerflo-missing-project-for-test")).rejects.toThrow();
   });
