@@ -2,6 +2,21 @@
 import { FLOW_GEOMETRY } from "./tokens.js";
 
 /**
+ * Places the outage cross halfway along the clear horizontal grid lane, above the artwork.
+ * @param {Object} canvas Topology rectangle.
+ * @param {Object} inverter Visible artwork rectangle.
+ * @param {Object} node Grid panel rectangle.
+ * @returns {{x:number,y:number}} Position in the normalized SVG canvas.
+ */
+export function gridDisconnectPoint(canvas,inverter,node) {
+  const portX=inverter.left+inverter.width*FLOW_GEOMETRY.rightPort;
+  const endY=inverter.top-FLOW_GEOMETRY.arrowClearance;
+  const laneY=Math.min(node.top+node.height*FLOW_GEOMETRY.sourceUpper,endY-FLOW_GEOMETRY.cornerRadius);
+  return {x:((node.left+portX)/2-canvas.left)/canvas.width*FLOW_GEOMETRY.width,
+    y:(laneY-canvas.top)/canvas.height*FLOW_GEOMETRY.height};
+}
+
+/**
  * Routes a rounded connector outside the visible art, with clearance for small chevrons.
  * @param {Object} canvas Topology client rectangle.
  * @param {Object} inverter Image client rectangle.

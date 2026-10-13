@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Render fresh confirmed grid disconnection in red, with a static red X on the image-safe desktop connector lane; hide the marker for unknown/stale/reconnected states.
+- Fix demo sun/moon switching by toggling SVG hidden attributes rather than an HTMLElement-only property.
+- Add regressions for marker geometry/state transitions and ensure demo-only selectors are absent from the installed card.
+- Document demo-only controls and the configurable disconnect color; retain all runtime, forecast, statistics, transparency and read-only behavior.
+
 ## 0.3.0 — source update
 
 - Use integration-independent metadata and neutral identity defaults; retain editable ratings and battery forecast behavior.

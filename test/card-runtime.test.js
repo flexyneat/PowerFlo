@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PowerFloCard } from "../src/card.js";
 import { DEFAULT_CONFIG } from "../src/config.js";
-import { connectorPath } from "../src/connector-geometry.js";
+import { connectorPath, gridDisconnectPoint } from "../src/connector-geometry.js";
 import { DEFAULT_ART_BOUNDS, FLOW_GEOMETRY } from "../src/tokens.js";
 
 if (!customElements.get("test-runtime-card")) customElements.define("test-runtime-card", PowerFloCard);
@@ -80,6 +80,31 @@ describe("battery panel runtime", () => {
 });
 
 describe("visible flow arrows and forecast illustrations", () => {
+  it("keeps the outage cross on the clear grid lane above inverter art", () => {
+    const canvas={left:0,top:0,width:1000,height:600};
+    const inverter={left:400,top:100,width:200,bottom:400};
+    const grid={left:700,top:0,height:250};
+    const point=gridDisconnectPoint(canvas,inverter,grid);
+    expect(point.x).toBe(620);expect(point.y).toBe(70);
+    expect(point.y+FLOW_GEOMETRY.disconnectHalfSize).toBeLessThan(inverter.top);
+  });
+  it("shows a red disconnect cross only for a confirmed fresh outage and keeps demo controls out of HA", () => {
+    const card=fixture(),root=card.shadowRoot;
+    const marker=root.querySelector('[data-grid-disconnect]');
+    expect(marker.getAttribute("visibility")).toBe("hidden");
+    card.hassValue.states[card.config.entities.grid_connected].state="off";card.updateModel();
+    expect(marker.getAttribute("visibility")).toBe("visible");
+    expect(root.querySelector("style").textContent).toContain('data-connection="disconnected"');
+    expect(root.querySelector("style").textContent).toContain('var(--pf-disconnected)');
+    card.hassValue.states[card.config.entities.freshness].state="off";card.updateModel();
+    expect(marker.getAttribute("visibility")).toBe("hidden");
+    card.hassValue.states[card.config.entities.freshness].state="on";
+    card.hassValue.states[card.config.entities.grid_connected].state="unknown";card.updateModel();
+    expect(marker.getAttribute("visibility")).toBe("hidden");
+    card.hassValue.states[card.config.entities.grid_connected].state="on";card.updateModel();
+    expect(marker.getAttribute("visibility")).toBe("hidden");
+    expect(root.querySelector('select,#mode,#grid-mode,#theme,.fixture-controls')).toBeNull();
+  });
   it("shows confirmed grid disconnection without implying live grid measurements", () => {
     const card=fixture(); const root=card.shadowRoot;
     card.hassValue.states[card.config.entities.grid_connected].state="offline";

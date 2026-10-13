@@ -23,6 +23,10 @@ describe("demo controls", () => {
     button.click();expect(root.dataset.themeMode).toBe("manual");expect(root.dataset.theme).toBe("light");
     media.addEventListener.mock.calls[0][1]();expect(root.dataset.theme).toBe("light");
     button.click();expect(root.dataset.theme).toBe("dark");
-    expect(button.querySelector('[data-theme-icon="light"]').hidden).toBe(false);
+    expect(button.querySelector('[data-theme-icon="light"]').hasAttribute("hidden")).toBe(false);
+    expect(button.querySelector('[data-theme-icon="dark"]').hasAttribute("hidden")).toBe(true);
+    button.click();
+    expect(button.querySelector('[data-theme-icon="dark"]').hasAttribute("hidden")).toBe(false);
+    expect(button.querySelector('[data-theme-icon="light"]').hasAttribute("hidden")).toBe(true);
   });
 });

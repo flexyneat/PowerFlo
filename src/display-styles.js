@@ -33,5 +33,6 @@ export function displayStyles() {
     @container(max-width:${BREAKPOINTS.narrow}){.battery-readings,.battery-estimates{gap:var(--pf-space3)}.battery-readings>div+div,.battery-estimates>div+div{padding-inline-start:var(--pf-space3)}.battery-estimates .forecast-value{font-size:var(--pf-node-title-size)}.milestone-rail{grid-template-columns:1fr}.battery-details .node-meta{font-size:var(--pf-label-size)}}
     .node{padding:var(--pf-space4);gap:var(--pf-space3)}.battery{gap:var(--pf-space2)}.battery-estimates .forecast-value{font-size:var(--pf-node-title-size)}
     .solar-capacity{grid-column:1/-1}.solar-capacity[hidden],.inverter-model[hidden]{display:none}.grid:not([data-connection="connected"]) .node-value{font-size:var(--pf-node-title-size);white-space:normal;color:var(--pf-warning)}.grid:not([data-connection="connected"]) .node-icon{color:var(--pf-text-muted)}
+    .grid[data-connection="disconnected"] .node-value{color:var(--pf-disconnected)}.grid-disconnect-cross{fill:none;stroke:var(--pf-disconnected);stroke-width:var(--pf-disconnect-stroke);stroke-linecap:round;vector-effect:non-scaling-stroke}
   `;
 }

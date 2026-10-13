@@ -32,7 +32,8 @@ export function initializeTheme(root,button,media) {
     const next=root.dataset.theme==="dark" ? "light" : "dark";
     const label=`Switch to ${next} mode`;
     button.setAttribute("aria-label",label);button.title=label;
-    for(const icon of button.querySelectorAll("[data-theme-icon]")) icon.hidden=icon.dataset.themeIcon!==next;
+    // SVG is not HTMLElement: update the actual attribute consumed by CSS, not an expando property.
+    for(const icon of button.querySelectorAll("[data-theme-icon]")) icon.toggleAttribute("hidden",icon.dataset.themeIcon!==next);
   }
   media.addEventListener("change",sync);
   button.addEventListener("click",()=>{

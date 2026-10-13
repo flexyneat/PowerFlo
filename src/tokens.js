@@ -38,6 +38,8 @@ export const TOKENS = Object.freeze({
   live: "color-mix(in srgb, var(--pf-live-base) 64%, var(--pf-text))",
   warning: "color-mix(in srgb, var(--pf-warning-base) 64%, var(--pf-text))",
   fault: "color-mix(in srgb, var(--pf-fault-base) 64%, var(--pf-text))",
+  disconnected: "var(--powerflo-disconnected-color, var(--pf-fault))",
+  disconnectStroke: "3",
   focus: "color-mix(in srgb, var(--pf-focus-base) 64%, var(--pf-text))",
   space1: "0.25rem",
   space2: "0.5rem",
@@ -112,7 +114,7 @@ export const TOKENS = Object.freeze({
 export const BREAKPOINTS = Object.freeze({ compact: "58rem", narrow: "34rem" });
 
 /** Normalized connector canvas and inverter attachment positions. */
-export const FLOW_GEOMETRY = Object.freeze({ width: 1000, height: 600, arrowClearance: 8, cornerRadius: 18, leftPort: 0.3, rightPort: 0.7, sourceUpper: 0.28, sourceLower: 0.72 });
+export const FLOW_GEOMETRY = Object.freeze({ width: 1000, height: 600, arrowClearance: 8, cornerRadius: 18, leftPort: 0.3, rightPort: 0.7, sourceUpper: 0.28, sourceLower: 0.72, disconnectHalfSize: 6 });
 
 /** Measured nontransparent bounds of the bundled PNG; uploaded art uses its full box. */
 export const DEFAULT_ART_BOUNDS = Object.freeze({ left: 144 / 1145, top: 140 / 1374, right: 1002 / 1145, bottom: 1251 / 1374 });

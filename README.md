@@ -157,18 +157,18 @@ The native editor exposes the fields below, image upload and entity/statistic ma
 
 Upload PNG/JPEG/WebP up to 2 MB and 4096 × 4096 pixels. The image is embedded in card configuration. Alternatively use a raster image under `www/` with a `/local/` path. External URLs, active URLs and SVG uploads are rejected. Use transparent PNG/WebP if you want the image itself to blend into the dashboard.
 
-Panels are transparent and shadow-free. Text/borders inherit HA theme variables. Themes can override `--powerflo-solar-color`, `--powerflo-grid-color`, `--powerflo-battery-color` and `--powerflo-load-color`; check contrast against your background.
+Panels are transparent and shadow-free. Text/borders inherit HA theme variables. Themes can override `--powerflo-solar-color`, `--powerflo-grid-color`, `--powerflo-battery-color`, `--powerflo-load-color` and `--powerflo-disconnected-color`; check contrast against your background.
 
 ## Grid states
 
 | Condition | Display |
 | --- | --- |
 | Fresh connection true and numeric power | Importing, exporting or static, with measured power |
-| Fresh connection false | **Disconnected**; no grid flow, and retained measurements are not shown as live |
+| Fresh connection false | Red **Disconnected** and a red X on the desktop grid connector; no grid flow, and retained measurements are not shown as live |
 | Fresh connection unknown | **Unavailable**; connection unknown and flow paused |
 | Stale/unavailable telemetry | **Stale/Unavailable**; last-reported connection labelled and flow paused |
 
-A disconnected port is not automatically proof of a utility outage. The card reports your mapped connection entity. Zero power on a connected grid stays Static, not Disconnected.
+A disconnected port is not automatically proof of a utility outage. The card reports your mapped connection entity. Zero power on a connected grid stays Static, not Disconnected. The X is hidden for unknown or stale telemetry; compact layouts omit connector lines but keep the textual disconnect status.
 
 ## Battery forecasts
 
@@ -211,6 +211,8 @@ Try battery modes, connected/disconnected/unknown/stale grid states, periods and
 Appearance follows the system light/dark preference initially. The sun/moon button switches between light and dark; after a manual selection, system changes no longer override it. Reload to return to automatic appearance. Customize system exposes the native editor for identity, ratings, battery/solar size, image and behavior. Preview settings stay in memory: they are not saved into the HTML or sent to hardware. Use raster upload rather than an HA-only image URL when offline.
 
 The fixture is labelled simulated and has no live HA connection or credentials. Its Content Security Policy blocks external connections/assets. Review any local fixture edits before sharing. The HTML is not an HA installation resource.
+
+Battery/Grid scenario dropdowns and the sun/moon button belong only to the demo, outside the card. They are not rendered on the installed Home Assistant card, which follows HA's theme and mapped live entities. The normal card editor's configuration fields remain available when editing a dashboard.
 
 ## Update and troubleshoot
 

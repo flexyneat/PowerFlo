@@ -7,8 +7,8 @@ import { loadPeriodHistory, periodEnergy, periodRange } from "./period-history.j
 import { deriveModel, numericState } from "./state-model.js";
 import { BatteryChargeEstimator, BatteryRuntimeEstimator, formatRuntime } from "./runtime.js";
 import { cardStyles } from "./styles.js";
-import { connectorPath } from "./connector-geometry.js";
-import { DEFAULT_ART_BOUNDS, READING_MOTION, CHART_GEOMETRY } from "./tokens.js";
+import { connectorPath, gridDisconnectPoint } from "./connector-geometry.js";
+import { DEFAULT_ART_BOUNDS, READING_MOTION, CHART_GEOMETRY, FLOW_GEOMETRY } from "./tokens.js";
 import { readingParts, chartCoordinates, chartPaths } from "./presentation.js";
 import { estimateConfidence, projectCharge } from "./charge-model.js";
 import { nearestObservation } from "./chart-inspection.js";
@@ -197,6 +197,9 @@ export class PowerFloCard extends HTMLElement {
       const node = this.shadowRoot.querySelector(`.node.${name}`).getBoundingClientRect();
       this.shadowRoot.querySelector(`[data-flow-path="${name}"]`).setAttribute("d", connectorPath(canvas, inverter, node, name));
     }
+    const grid=this.shadowRoot.querySelector(".grid").getBoundingClientRect();
+    const point=gridDisconnectPoint(canvas,inverter,grid);
+    this.shadowRoot.querySelector('[data-grid-disconnect]').setAttribute("transform",`translate(${point.x} ${point.y})`);
     this.updateAnimationVisibility();
   }
 
@@ -287,6 +290,13 @@ export class PowerFloCard extends HTMLElement {
     this.shadowRoot.querySelector(".solar").append(this.shadowRoot.querySelector(".mppts"));
     const solarCapacity=document.createElement("div"); solarCapacity.className="node-meta solar-capacity";
     solarCapacity.setAttribute("data-solar-capacity",""); this.shadowRoot.querySelector(".solar").append(solarCapacity);
+    // Decorative marker supplements the textual grid status; it never labels unknown/stale data as an outage.
+    const cross=document.createElementNS("http://www.w3.org/2000/svg","path");
+    cross.setAttribute("data-grid-disconnect","");cross.setAttribute("class","grid-disconnect-cross");
+    cross.setAttribute("visibility","hidden");
+    const half=FLOW_GEOMETRY.disconnectHalfSize;
+    cross.setAttribute("d",`M${-half} ${-half} L${half} ${half} M${-half} ${half} L${half} ${-half}`);
+    this.shadowRoot.querySelector(".connectors").append(cross);
     this.shadowRoot.querySelector(".history-message .retry").addEventListener("click", () => this.loadHistoryIfNeeded(true));
     const slider = this.shadowRoot.querySelector("#history-cursor");
     slider.setAttribute("aria-describedby", "inspection-time");
@@ -425,6 +435,7 @@ export class PowerFloCard extends HTMLElement {
     const node=this.shadowRoot.querySelector(".grid");
     const meta=this.shadowRoot.querySelector('[data-meta="grid"]'); meta.setAttribute("role","status");
     node.dataset.connection=model.dataState !== "fresh" ? model.dataState : model.grid === "disconnected" ? "disconnected" : model.connected === null ? "unknown" : "connected";
+    this.shadowRoot.querySelector('[data-grid-disconnect]').setAttribute("visibility",node.dataset.connection==="disconnected" ? "visible" : "hidden");
     if (model.dataState !== "fresh") {
       this.setText('[data-value="grid"]',label(model.dataState));
       this.setText('[data-meta="grid"]',`Telemetry ${model.dataState} · last reported ${model.connected === false ? "disconnected" : model.connected === true ? "connected" : "unknown"}`);
