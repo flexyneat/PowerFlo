@@ -8,13 +8,13 @@
  */
 export function demoScenario(mode,grid) {
   const outage=mode==="offgrid",disconnected=outage||grid==="disconnected";
-  const solar=mode==="discharging"||outage ? 0 : 4820;
+  const solar=mode==="discharging"||outage ? 0 : mode==="static"?2760:4820;
+  const battery=outage?3000:mode==="charging"?-2000:mode==="discharging"?512:0;
   return {freshness:outage||grid!=="stale" ? "on" : "off",
     grid_connected:disconnected ? "off" : grid==="unknown" ? "unavailable" : "on",
     grid_power:disconnected ? 0 : 240,grid_voltage:disconnected ? 0 : 230.4,grid_frequency:disconnected ? 0 : 50,
-    solar_power:solar,pv1_power:solar ? 1620 : 0,pv2_power:solar ? 1580 : 0,pv3_power:solar ? 1620 : 0,
-    battery_power:outage ? 3000 : mode==="charging" ? -2000 : mode==="discharging" ? 512 : 0,
-    load_power:3000};
+    solar_power:solar,pv1_power:solar ? solar*1620/4820 : 0,pv2_power:solar ? solar*1580/4820 : 0,pv3_power:solar ? solar*1620/4820 : 0,
+    battery_power:battery,load_power:Math.max(0,solar+(disconnected?0:240)+battery)};
 }
 
 /**

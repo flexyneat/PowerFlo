@@ -80,6 +80,10 @@ export class PowerFloEditor extends HTMLElement {
     ];
     for (const field of appearanceFields) appearance.append(this.createField(...field));
     appearance.append(this.createUploadField());
+    appearance.append(this.createSelectField("density","Layout density",[["compact","Compact"],["standard","Standard"],["expanded","Expanded"]]));
+    behavior.append(this.createSelectField("use_learned_taper","Use session-learned taper",[["false","Assumed taper"],["true","Use learned when qualified"]]));
+    behavior.append(this.createField("runtime_load_efficiency","Load runtime efficiency assumption (0.5–1)","number"));
+    behavior.append(this.createSelectField("energy_sources_verified","Counters are PV production / grid import / battery discharge",[["false","Not verified"],["true","Verified roles"]]));
     behavior.append(this.createSelectField("clock_format", "Clock format", [["12", "12-hour"], ["24", "24-hour"]]));
     behavior.append(this.createSelectField("battery_positive", "Positive battery power", [["discharge", "Discharging"], ["charge", "Charging"]]));
     behavior.append(this.createSelectField("grid_positive", "Positive grid power", [["import", "Importing"], ["export", "Exporting"]]));
@@ -180,6 +184,7 @@ export class PowerFloEditor extends HTMLElement {
     if (!path) return;
     try {
       let value = control.type === "number" ? Number(control.value) : control.value;
+      if(["use_learned_taper","energy_sources_verified"].includes(path))value=control.value==="true";
       if (path === "image_upload" && control instanceof HTMLInputElement && control.files?.[0]) {
         value = await readImageFile(control.files[0]);
         this.config = normalizeConfig({ ...this.config, inverter_image: value });

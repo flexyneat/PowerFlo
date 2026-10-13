@@ -14,6 +14,8 @@ import { estimateConfidence, projectCharge } from "./charge-model.js";
 import { nearestObservation } from "./chart-inspection.js";
 import { loadEnergyStatistics } from "./statistics.js";
 import { DEMAND_LIMITS, demandSummary, loadDemandHistory } from "./load-trend.js";
+import { estimateBand,loadRuntimes,supplyMix,grossEnergyMix,solarUtilization,TaperSession,OutageSession,inspectEntities } from "./insights.js";
+import { loadOutageHistory } from "./outage-history.js";
 
 const FLOW_NAMES = Object.freeze(["solar", "grid", "battery", "load"]);
 const SUMMARY_NAMES = Object.freeze(["solar", "grid", "load", "battery"]);
@@ -57,6 +59,9 @@ export class PowerFloCard extends HTMLElement {
     this.config = normalizeConfig();
     this.hassValue = null;
     this.latestModel = null;
+    this.taperSession=new TaperSession();this.outageSession=new OutageSession();this.estimateResults=null;
+    this.outageBackfill=[];this.outageHistoryState="idle";this.outageRequest=0;this.outageLastFetch=null;
+    this.energyTotals={};
     this.rendered = false;
     this.pendingFrame = 0;
     this.historyKey = "";
@@ -96,6 +101,9 @@ export class PowerFloCard extends HTMLElement {
     if (errors.length) throw new Error(errors.join("; "));
     this.runtimeEstimator.reset();
     this.chargeEstimator.reset();
+    this.taperSession=new TaperSession();this.outageSession=new OutageSession();this.estimateResults=null;
+    this.outageBackfill=[];this.outageHistoryState="idle";this.outageRequest++;this.outageLastFetch=null;
+    this.energyTotals={};
     this.latestModel = null;
     this.historyRequest += 1;
     this.historyKey = "";
@@ -120,6 +128,7 @@ export class PowerFloCard extends HTMLElement {
    */
   set hass(hass) {
     this.hassValue = hass;
+    this.loadOutagesIfNeeded();
     this.queueUpdate();
     this.loadHistoryIfNeeded();
     this.loadDemandIfNeeded();
@@ -297,6 +306,10 @@ export class PowerFloCard extends HTMLElement {
     const half=FLOW_GEOMETRY.disconnectHalfSize;
     cross.setAttribute("d",`M${-half} ${-half} L${half} ${half} M${-half} ${half} L${half} ${-half}`);
     this.shadowRoot.querySelector(".connectors").append(cross);
+    const insights=document.createElement("details");insights.className="powerflo-insights";
+    const headings={ranges:"Estimate ranges",scenarios:"Load runtime scenarios",taper:"Observed charging taper",limits:"Battery current limits",solar:"Solar utilization",mppt:"MPPT detail",sources:"Indicative supply mix",quality:"Data quality",outages:"Observed outage timeline",coverage:"History coverage"};
+    insights.innerHTML='<summary>System insights</summary><div class="insight-grid">'+Object.entries(headings).map(([key,title])=>`<section><h3>${title}</h3><p data-insight="${key}"></p></section>`).join("")+'</div>';
+    this.shadowRoot.querySelector(".topology").after(insights);
     this.shadowRoot.querySelector(".history-message .retry").addEventListener("click", () => this.loadHistoryIfNeeded(true));
     const slider = this.shadowRoot.querySelector("#history-cursor");
     slider.setAttribute("aria-describedby", "inspection-time");
@@ -353,6 +366,8 @@ export class PowerFloCard extends HTMLElement {
 
   /** Applies editable identity and validated image sources without interpreting user HTML. */
   updateStaticText() {
+    this.dataset.density=this.config.density;
+    this.shadowRoot.querySelector(".powerflo-insights").open=this.config.density==="expanded";
     this.setText(".title", this.config.title);
     this.setText(".inverter-name", this.config.inverter_name);
     this.setText(".inverter-model", this.config.inverter_model);
@@ -426,6 +441,7 @@ export class PowerFloCard extends HTMLElement {
     this.updateDemand();
     this.updateGrid(model);
     this.updateRuntime(model);
+    this.updateInsights(model);
     this.appendLiveHistory();
     this.updateHistory();
   }
@@ -484,10 +500,12 @@ export class PowerFloCard extends HTMLElement {
     const gridImport = model.grid === "importing" ? Math.abs(model.values.gridPower ?? 0) : 0;
     const projection = target => projectCharge({ rate: charge, soc: input.soc, target, capacityKwh: input.capacityKwh,
       solarWatts: solar, gridImportWatts: gridImport, forecastSolarWatts: validForecast, solarHours: horizon,
-      taperStart: this.config.charge_taper_start_soc, taperFloor: this.config.charge_taper_floor_ratio });
+      taperStart: this.config.charge_taper_start_soc, taperFloor: this.config.use_learned_taper ? this.taperSession.floor(this.config.charge_taper_start_soc)??this.config.charge_taper_floor_ratio : this.config.charge_taper_floor_ratio });
+    this.taperSession.observe({time:input.sampleTime,soc:input.soc,watts:input.power,supply:solar!==null&&gridImport!==null?Math.max(0,solar)+Math.max(0,gridImport):NaN,load:model.values.loadPower,fresh:input.fresh&&model.battery==="charging"&&Number.isFinite(model.values.loadPower)});
     const chargeResult = projection(this.config.battery_charge_target_soc);
     const targetResult = projection(this.config.battery_charge_target_soc === 100 ? 95 : this.config.battery_charge_target_soc);
     const fullResult = projection(100);
+    this.estimateResults={runtime,charge,target:targetResult,full:fullResult};
     this.updateForecastIcon("full", chargeResult.status, this.config.battery_charge_target_soc);
     const chargeText = result => result.status === "ready" ? formatRuntime(result.hours) : result.status === "solar-limited" ? "Needs more solar" :
       result.status === "warming" ? "Collecting charge data" : result.status === "static" ? "Not charging" : states[result.status];
@@ -513,6 +531,54 @@ export class PowerFloCard extends HTMLElement {
     this.setText('[data-battery-confidence]', chargeResult.status === "ready" ? `${chargeConfidence.level} confidence` : runtime.status === "ready" ? `${dischargeConfidence.level} confidence` : "Estimates need fresh observations");
     const ageSeconds = Number.isFinite(input.sampleTime) ? Math.max(0, Math.round((input.now - input.sampleTime) / 1000)) : null;
     this.setText(".sample-age", ageSeconds === null ? "" : `${ageSeconds}s`);
+  }
+
+  /** @param {Object} model Fresh state projection. Updates read-only advanced detail without hiding essential estimates. */
+  updateInsights(model){
+    const set=(key,value)=>this.setText(`[data-insight="${key}"]`,value);
+    const fresh=model.dataState==="fresh",states=this.hassValue.states,now=Date.now();
+    const isRecent=name=>{const e=states[this.config.entities[name]],time=Date.parse(e?.last_reported??e?.last_updated??"");return Number.isFinite(time)&&time<=now&&now-time<=this.config.runtime_max_sample_age_seconds*1000;};
+    const live=name=>{const e=states[this.config.entities[name]],unit=e?.attributes?.unit_of_measurement,expected=name.includes("current")?"A":name.endsWith("voltage")?"V":name.endsWith("power")?"W":name==="battery_soc"?"%":null;return fresh&&isRecent(name)&&(!unit||!expected||unit===expected)?numericState(states,this.config.entities[name]):null;};
+    const r=this.estimateResults;
+    const band=result=>{const value=estimateBand(result,r?.charge.variation);return value?`${formatRuntime(value.low)}–${formatRuntime(value.high)}`:"Awaiting usable observations";};
+    set("ranges",r?`Target: ${band(r.target)}\nFull: ${band(r.full)}\nRuntime: ${(()=>{const b=estimateBand(r.runtime,r.runtime.variation);return b?`${formatRuntime(b.low)}–${formatRuntime(b.high)}`:"Not discharging / insufficient data";})()}\nRate-variation scenarios, not probability intervals.`:"Collecting samples");
+    const demand=demandSummary(this.demandSamples);
+    const hours=loadRuntimes(live("battery_soc"),this.config.battery_reserve_soc,this.config.battery_capacity_kwh,this.config.runtime_load_efficiency,{current:live("load_power"),average:demand.averageWatts,peak:demand.peakWatts});
+    set("scenarios",Object.entries(hours).map(([key,value])=>`${label(key)} load: ${value===null?"Unavailable":formatRuntime(value)}`).join("\n")+`\nTo ${this.config.battery_reserve_soc}% reserve; ${(this.config.runtime_load_efficiency*100).toFixed(0)}% assumed efficiency; no future solar/load growth.`);
+    const learned=this.taperSession.floor(this.config.charge_taper_start_soc);
+    set("taper",learned===null?"Collecting qualified low/high-SOC charging samples with stable supply. Assumed taper remains in use.":`Observed full-SOC ratio ${(learned*100).toFixed(0)}% · ${this.config.use_learned_taper?"used in projections":"display only (opt-in)"}. Session-only inference, not BMS calibration.`);
+    const current=live("battery_current"),charge=live("bms_charge_current_limit"),discharge=live("bms_discharge_current_limit");
+    const limit=model.battery==="charging"?charge:model.battery==="discharging"?discharge:null;
+    set("limits",`Battery: ${formatValue(current,"A")}\nBMS charge: ${formatValue(charge,"A")} · discharge: ${formatValue(discharge,"A")}\n${current!==null&&limit!==null&&limit>0&&Math.abs(current)>=limit*.95?"Near reported current ceiling; verify BMS conditions.":"Optional BMS mappings; no limits are changed."}`);
+    const utilization=solarUtilization(live("solar_power"),this.config.solar_capacity_kw);
+    set("solar",utilization===null?"Configure installed kWp and fresh solar watts.":`${utilization.toFixed(1)}% of installed DC nameplate now; not conversion efficiency.`);
+    set("mppt",[1,2,3].map(i=>`MPPT ${i}: ${formatValue(live(`pv${i}_power`),"W",0)} · ${formatValue(live(`pv${i}_voltage`),"V")} · ${formatValue(live(`pv${i}_current`),"A")}`).join("\n"));
+    const mix=supplyMix({...model,values:{solarPower:live("solar_power"),batteryPower:live("battery_power"),gridPower:live("grid_power"),loadPower:live("load_power")}},this.config);
+    set("sources",mix?Object.entries(mix.shares).map(([key,value])=>`${label(key)} ${(value*100).toFixed(0)}%`).join(" · ")+`\nAC/DC residual ${Math.round(mix.residual)} W; losses/timing affect it. Proportions of measured supply, not routed load energy.`:"Source mix unavailable: need fresh known power/connection readings.");
+    const energy=this.historyState.status==="ready"?grossEnergyMix(this.energyTotals,this.config.energy_sources_verified):null;
+    const sourceText=this.shadowRoot.querySelector('[data-insight="sources"]');
+    sourceText.textContent+=energy?`\n${label(this.period)} gross energy counters: ${Object.entries(energy.shares).map(([key,value])=>`${label(key)} ${(value*100).toFixed(0)}%`).join(" · ")}. Storage cycling can count energy twice; not net load attribution; inspect history coverage.`:"\nEnergy proportions: verify production/import/discharge counter roles and recorded coverage first.";
+    const issues=inspectEntities(states,this.config,now);
+    set("quality",issues.length?issues.map(x=>x.message).join("\n"):"Required readings, units and timestamps passed. Verify polarity against the inverter; automatic sign detection is not safe.");
+    this.outageSession.observe(now,fresh&&isRecent("grid_power")?model.connected:null);
+    const format=time=>new Intl.DateTimeFormat(undefined,{weekday:"short",hour:"numeric",minute:"2-digit",hour12:this.config.clock_format!=="24",timeZone:this.hassValue.config?.time_zone}).format(new Date(time));
+    const activeHistory=this.outageBackfill.at(-1),activeLive=this.outageSession.events.at(-1);
+    if(activeHistory?.end===null&&activeLive?.end===null&&fresh&&model.connected===false){activeLive.start=Math.min(activeLive.start,activeHistory.start);activeLive.partial=activeHistory.partial;}
+    const events=[...this.outageBackfill.filter(e=>e.end!==null&&!this.outageSession.events.some(l=>l.start<e.end&&(l.end??now)>e.start)),...this.outageSession.events].filter(e=>(e.end??now)>=now-86400000).sort((a,b)=>a.start-b.start);
+    set("outages",(events.length?events.slice(-3).map(e=>`${format(e.start)} → ${e.end===null?"ongoing":format(e.end)} · ${formatRuntime(((e.end??now)-e.start)/3600000)}${e.partial?" · partial observation":""}`).join("\n"):"No recorded disconnect observations; not proof of grid availability.")+`\n24-hour Recorder: ${this.outageHistoryState}. Unknown telemetry is a coverage gap, not restoration.`);
+    set("coverage",`${label(this.period)} energy history: ${this.historyState.status}. Load observations: ${Math.floor(demand.coverage*100)}% of trailing 15 minutes. Missing intervals are not zero.`);
+  }
+
+  /** Loads a bounded one-day, two-entity read-only outage history no more than once per minute; rejects superseded results. */
+  async loadOutagesIfNeeded(){
+    const now=Date.now();
+    const refresh=this.outageHistoryState.startsWith("Unavailable")?60000:3600000;
+    if(!this.hassValue?.callApi||!this.config.entities.grid_connected||!this.config.entities.freshness||!this.visible||document.hidden||this.outageHistoryState==="loading"||this.outageLastFetch!==null&&now-this.outageLastFetch<refresh)return;
+    const request=++this.outageRequest;this.outageLastFetch=now;this.outageHistoryState="loading";
+    try{const result=await loadOutageHistory(this.hassValue,this.config.entities,now);
+      if(request!==this.outageRequest)return;this.outageBackfill=result.events;this.outageHistoryState=result.coverage;
+    }catch{if(request!==this.outageRequest)return;this.outageHistoryState="Unavailable; session observations retained";}
+    if(this.latestModel)this.updateInsights(this.latestModel);
   }
 
   /**
@@ -704,6 +770,7 @@ export class PowerFloCard extends HTMLElement {
       const todayStart = periodRange("today", range.end, timeZone).start.getTime();
       const live = sampleTime >= todayStart && sampleTime <= range.end.getTime() ? this.latestModel?.values[`${name}Today`] ?? null : null;
       const total = this.period === "today" ? live ?? result.total : result.total;
+      this.energyTotals[name]=total;
       this.setReading(`[data-summary-value="${name}"]`, total, "kWh", 1, false);
       this.setText(`[data-coverage="${name}"]`, !(this.period === "today" ? id : statisticId) ? "Map an energy entity" : loading ? "Loading history" : failed ? "History unavailable" :
         result.total === null ? this.period === "today" ? "No recorded samples" : result.status === "missing" ? "Energy statistics not configured" : "No completed statistics" :
@@ -717,6 +784,7 @@ export class PowerFloCard extends HTMLElement {
       summary.setAttribute("aria-label", `${label(name)}, ${label(this.period)}: ${formatValue(total, "kWh")}. ${result.partial ? "Partial recorded history." : "Recorded history."}`);
     }
     this.updateInspection();
+    if(this.latestModel)this.updateInsights(this.latestModel);
   }
 
   /** Shows nearest actual observations for a shared hover/touch/keyboard time cursor. */

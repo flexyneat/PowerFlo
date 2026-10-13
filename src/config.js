@@ -21,6 +21,10 @@
  * @property {number} charge_taper_start_soc Assumed future taper starting SOC.
  * @property {number} charge_taper_floor_ratio Assumed charge ratio at full SOC.
  * @property {number} solar_projection_hours Assumed solar availability horizon.
+ * @property {"compact"|"standard"|"expanded"} density Layout density; essential readings are never hidden.
+ * @property {boolean} use_learned_taper Opt-in to session-observed taper; not a calibrated BMS model.
+ * @property {number} runtime_load_efficiency Assumed DC-to-AC efficiency for load scenarios.
+ * @property {boolean} energy_sources_verified User confirmed production/import/discharge counter meanings.
  * @property {Record<string, string>} statistics Optional long-term energy statistic IDs.
  * @property {string} inverter_image Validated local or data image URL.
  * @property {"12" | "24"} clock_format Clock presentation.
@@ -47,6 +51,10 @@ export const DEFAULT_CONFIG = Object.freeze({
   charge_taper_start_soc: 90,
   charge_taper_floor_ratio: 0.2,
   solar_projection_hours: 4,
+  density: "standard",
+  use_learned_taper: false,
+  runtime_load_efficiency: 0.9,
+  energy_sources_verified: false,
   statistics: Object.freeze({ solar: "", grid: "", load: "", battery: "" }),
   inverter_image: "",
   clock_format: "12",
@@ -75,6 +83,12 @@ export const DEFAULT_CONFIG = Object.freeze({
     load_today: "",
     battery_today: "",
     solar_forecast_power: "",
+    battery_current: "",
+    bms_charge_current_limit: "",
+    bms_discharge_current_limit: "",
+    pv1_voltage: "",pv1_current: "",
+    pv2_voltage: "",pv2_current: "",
+    pv3_voltage: "",pv3_current: "",
   }),
 });
 
@@ -140,6 +154,10 @@ export function normalizeConfig(input = {}) {
     charge_taper_start_soc: finiteInRange(input.charge_taper_start_soc, DEFAULT_CONFIG.charge_taper_start_soc, 50, 99),
     charge_taper_floor_ratio: finiteInRange(input.charge_taper_floor_ratio, DEFAULT_CONFIG.charge_taper_floor_ratio, 0.05, 1),
     solar_projection_hours: finiteInRange(input.solar_projection_hours, DEFAULT_CONFIG.solar_projection_hours, 0, 24),
+    density: ["compact","expanded"].includes(input.density)?input.density:"standard",
+    use_learned_taper: input.use_learned_taper===true,
+    energy_sources_verified: input.energy_sources_verified===true,
+    runtime_load_efficiency: finiteInRange(input.runtime_load_efficiency,DEFAULT_CONFIG.runtime_load_efficiency,0.5,1),
     statistics: Object.fromEntries(Object.keys(DEFAULT_CONFIG.statistics).map(key => [key, String(input.statistics?.[key] ?? "").trim().slice(0, 300)])),
     inverter_image: safeImageSource(input.inverter_image ?? DEFAULT_CONFIG.inverter_image),
     clock_format: input.clock_format === "24" ? "24" : "12",

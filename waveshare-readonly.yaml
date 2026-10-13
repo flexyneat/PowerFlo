@@ -1,0 +1,752 @@
+# Read-only ESPHome configuration for:
+# - Deye SUN-12K-SG02LP1-EU-AM3
+# - Waveshare ESP32-S3-RS485-CAN (standard onboard-antenna model)
+#
+# This file intentionally defines sensors only. It contains no Modbus write
+# entities, no API-disconnect automation, and no fallback access point.
+
+substitutions:
+  device_name: deye-12k-modbus
+  friendly_name: Deye 12 kW Modbus
+  modbus_address: "0x01"
+
+# Candidate SG02LP1 read-only map. Verify scales/roles against your actual
+# firmware before mapping these entities into PowerFlo; not a hardware-certified profile.
+
+# Updated whenever a reliable Modbus value is received. It powers a separate
+# freshness heartbeat; it does not invalidate the raw sensors' last-known values.
+globals:
+  - id: last_pv2_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: "0"
+  - id: last_pv3_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: "0"
+  - id: last_soc_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: "0"
+  - id: last_battery_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: "0"
+  - id: last_grid_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: "0"
+  - id: last_load_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: "0"
+  - id: last_modbus_response_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: "0"
+
+esphome:
+  name: "${device_name}"
+  friendly_name: "${friendly_name}"
+  min_version: "2026.9.0"
+  comment: "Read-only Deye SG02LP1 telemetry via isolated RS485"
+  project:
+    name: local.deye-readonly
+    version: "0.4.0"
+
+esp32:
+  variant: esp32s3
+  flash_size: 16MB
+  flash_mode: dio
+  framework:
+    type: esp-idf
+
+# Serial logging is disabled on UART hardware; logs remain available over Wi-Fi.
+logger:
+  level: INFO
+  baud_rate: 0
+  logs:
+    modbus: WARN
+    modbus_controller: WARN
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  min_auth_mode: WPA2
+
+# The encrypted native API is the only Home Assistant data path.
+api:
+  encryption:
+    key: !secret deye_gateway_api_key
+
+# ESPHome 2026.9+ encrypts OTA traffic when this option is present.
+ota:
+  - platform: esphome
+    encryption:
+
+safe_mode:
+
+# Exact Waveshare ESP32-S3-RS485-CAN pin assignment.
+uart:
+  id: inverter_uart
+  tx_pin: GPIO17
+  rx_pin: GPIO18
+  flow_control_pin: GPIO21
+  baud_rate: 9600
+  data_bits: 8
+  parity: NONE
+  stop_bits: 1
+
+modbus:
+  id: inverter_modbus
+  uart_id: inverter_uart
+  role: client
+  send_wait_time: 2s
+  turnaround_time: 600ms
+
+# Begin at a conservative 30-second polling interval. Increase only after the
+# values have been checked against the inverter display and the bus is stable.
+modbus_controller:
+  - id: deye_inverter
+    address: "${modbus_address}"
+    modbus_id: inverter_modbus
+    setup_priority: -100
+    update_interval: 30s
+    max_cmd_retries: 2
+    continuous: false
+
+sensor:
+  # Board diagnostics.
+  - platform: wifi_signal
+    name: Wi-Fi signal
+    id: wifi_signal_dbm
+    update_interval: 60s
+    entity_category: diagnostic
+
+  - platform: uptime
+    name: Gateway uptime
+    entity_category: diagnostic
+
+  # PV input telemetry. The AM3 model has three MPPT channels; a fourth channel
+  # from the broader register map is deliberately not exposed.
+  - platform: modbus_controller
+    modbus_controller_id: deye_inverter
+    name: PV1 power
+    id: pv1_power
+    register_type: holding
+    address: 186
+    value_type: U_WORD
+    unit_of_measurement: W
+    device_class: power
+    state_class: measurement
+    force_update: true
+    accuracy_decimals: 0
+    on_value:
+      then:
+        # A fresh value proves that this polling cycle reached the inverter.
+        - lambda: if (!isnan(x)) id(last_modbus_response_ms) = millis();
+
+  - platform: modbus_controller
+    modbus_controller_id: deye_inverter
+    name: PV2 power
+    on_value:
+      then:
+        - lambda: if (!isnan(x)) id(last_pv2_ms) = millis();
+    id: pv2_power
+    register_type: holding
+    address: 187
+    value_type: U_WORD
+    unit_of_measurement: W
+    device_class: power
+    state_class: measurement
+    force_update: true
+    accuracy_decimals: 0
+
+  - platform: modbus_controller
+    modbus_controller_id: deye_inverter
+    name: PV3 power
+    on_value:
+      then:
+        - lambda: if (!isnan(x)) id(last_pv3_ms) = millis();
+    id: pv3_power
+    register_type: holding
+    address: 188
+    value_type: U_WORD
+    unit_of_measurement: W
+    device_class: power
+    state_class: measurement
+    force_update: true
+    accuracy_decimals: 0
+
+  - platform: template
+    name: PV power
+    id: pv_power
+    unit_of_measurement: W
+    device_class: power
+    state_class: measurement
+    force_update: true
+    accuracy_decimals: 0
+    update_interval: 30s
+    lambda: |-
+      if (isnan(id(pv1_power).state) ||
+          isnan(id(pv2_power).state) ||
+          isnan(id(pv3_power).state)) {
+        return {};
+      }
+      return id(pv1_power).state + id(pv2_power).state + id(pv3_power).state;
+
+  - platform: modbus_controller
+    modbus_controller_id: deye_inverter
+    name: PV1 voltage
+    register_type: holding
+    address: 109
+    value_type: U_WORD
+    unit_of_measurement: V
+    device_class: voltage
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: deye_inverter
+    name: PV1 current
+    register_type: holding
+    address: 110
+    value_type: U_WORD
+    unit_of_measurement: A
+    device_class: current
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: deye_inverter
+    name: PV2 voltage
+    register_type: holding
+    address: 111
+    value_type: U_WORD
+    unit_of_measurement: V
+    device_class: voltage
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: deye_inverter
+    name: PV2 current
+    register_type: holding
+    address: 112
+    value_type: U_WORD
+    unit_of_measurement: A
+    device_class: current
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: deye_inverter
+    name: PV3 voltage
+    register_type: holding
+    address: 113
+    value_type: U_WORD
+    unit_of_measurement: V
+    device_class: voltage
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: deye_inverter
+    name: PV3 current
+    register_type: holding
+    address: 114
+    value_type: U_WORD
+    unit_of_measurement: A
+    device_class: current
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: deye_inverter
+    name: Daily PV production
+    register_type: holding
+    address: 108
+    value_type: U_WORD
+    unit_of_measurement: kWh
+    device_class: energy
+    state_class: total_increasing
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: deye_inverter
+    name: Total PV production
+    id: total_pv_production
+    register_type: holding
+    address: 96
+    value_type: U_DWORD_R
+    unit_of_measurement: kWh
+    device_class: energy
+    state_class: total_increasing
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # Optional Deye micro-inverter input measurement. Enable this only when the
+  # GEN port is commissioned in Deye's Micro Inv Input mode. Grid/load-side
+  # AC coupling may instead require a Deye-supported external meter.
+  - platform: modbus_controller
+    modbus_controller_id: deye_inverter
+    name: Micro-inverter power
+    register_type: holding
+    address: 166
+    value_type: U_WORD
+    unit_of_measurement: W
+    device_class: power
+    state_class: measurement
+    force_update: true
+    accuracy_decimals: 0
+    disabled_by_default: true
+    entity_category: diagnostic
+
+  # Battery telemetry is read from the inverter's BMS view. The Pylontech CAN
+  # connection remains directly between the battery master and inverter.
+  - platform: modbus_controller
+    modbus_controller_id: deye_inverter
+    name: Battery temperature
+    register_type: holding
+    address: 182
+    value_type: U_WORD
+    unit_of_measurement: °C
+    device_class: temperature
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: deye_inverter
+    name: Battery voltage
+    id: battery_voltage
+    register_type: holding
+    address: 183
+    value_type: U_WORD
+    unit_of_measurement: V
+    device_class: voltage
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+
+  - platform: modbus_controller
+    modbus_controller_id: deye_inverter
+    name: Battery state of charge
+    on_value:
+      then:
+        - lambda: if (!isnan(x)) id(last_soc_ms) = millis();
+    register_type: holding
+    address: 184
+    value_type: U_WORD
+    unit_of_measurement: "%"
+    device_class: battery
+    state_class: measurement
+    force_update: true
+    accuracy_decimals: 0
+
+  - platform: modbus_controller
+    modbus_controller_id: deye_inverter
+    name: Battery power
+    on_value:
+      then:
+        - lambda: if (!isnan(x)) id(last_battery_ms) = millis();
+    id: battery_power
+    register_type: holding
+    address: 190
+    value_type: S_WORD
+    unit_of_measurement: W
+    device_class: power
+    state_class: measurement
+    force_update: true
+    accuracy_decimals: 0
+
+  # Register 191 has conflicting published field scales for SG02LP1 firmware.
+  # Keep the raw word and both candidates disabled until live commissioning
+  # proves which candidate matches |battery power| / battery voltage.
+  - platform: modbus_controller
+    modbus_controller_id: deye_inverter
+    name: Battery current raw register
+    id: battery_current_raw
+    register_type: holding
+    address: 191
+    value_type: S_WORD
+    accuracy_decimals: 0
+    disabled_by_default: true
+    entity_category: diagnostic
+
+  - platform: template
+    name: Battery current candidate x0.01
+    unit_of_measurement: A
+    device_class: current
+    state_class: measurement
+    force_update: true
+    accuracy_decimals: 2
+    update_interval: 30s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      if (isnan(id(battery_current_raw).state)) {
+        return {};
+      }
+      return id(battery_current_raw).state * 0.01f;
+
+  - platform: template
+    name: Battery current candidate x0.1
+    unit_of_measurement: A
+    device_class: current
+    state_class: measurement
+    force_update: true
+    accuracy_decimals: 1
+    update_interval: 30s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      if (isnan(id(battery_current_raw).state)) {
+        return {};
+      }
+      return id(battery_current_raw).state * 0.1f;
+
+  - platform: template
+    name: Battery calculated current magnitude
+    id: battery_calculated_current_magnitude
+    unit_of_measurement: A
+    device_class: current
+    state_class: measurement
+    force_update: true
+    accuracy_decimals: 1
+    update_interval: 30s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      if (isnan(id(battery_power).state) ||
+          isnan(id(battery_voltage).state) ||
+          id(battery_voltage).state <= 0.0f) {
+        return {};
+      }
+      return fabsf(id(battery_power).state) / id(battery_voltage).state;
+
+  - platform: modbus_controller
+    modbus_controller_id: deye_inverter
+    name: Daily battery charge
+    register_type: holding
+    address: 70
+    value_type: U_WORD
+    unit_of_measurement: kWh
+    device_class: energy
+    state_class: total_increasing
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: deye_inverter
+    name: Daily battery discharge
+    register_type: holding
+    address: 71
+    value_type: U_WORD
+    unit_of_measurement: kWh
+    device_class: energy
+    state_class: total_increasing
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: deye_inverter
+    name: Total battery charge
+    id: total_battery_charge
+    register_type: holding
+    address: 72
+    value_type: U_DWORD_R
+    unit_of_measurement: kWh
+    device_class: energy
+    state_class: total_increasing
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: deye_inverter
+    name: Total battery discharge
+    id: total_battery_discharge
+    register_type: holding
+    address: 74
+    value_type: U_DWORD_R
+    unit_of_measurement: kWh
+    device_class: energy
+    state_class: total_increasing
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # Grid and CT telemetry. Confirm the import/export sign on the installed CT.
+  - platform: modbus_controller
+    modbus_controller_id: deye_inverter
+    name: Grid power
+    on_value:
+      then:
+        - lambda: if (!isnan(x)) id(last_grid_ms) = millis();
+    id: grid_power
+    register_type: holding
+    address: 169
+    value_type: S_WORD
+    unit_of_measurement: W
+    device_class: power
+    state_class: measurement
+    force_update: true
+    accuracy_decimals: 0
+    filters:
+      # The dedicated SG02LP1 map and an exact-model field report agree on x10.
+      - multiply: 10
+
+  - platform: modbus_controller
+    modbus_controller_id: deye_inverter
+    name: External CT L1 diagnostic
+    register_type: holding
+    address: 170
+    value_type: S_WORD
+    unit_of_measurement: W
+    device_class: power
+    state_class: measurement
+    force_update: true
+    accuracy_decimals: 0
+    disabled_by_default: true
+    entity_category: diagnostic
+
+  - platform: modbus_controller
+    modbus_controller_id: deye_inverter
+    name: External CT register 171 candidate
+    register_type: holding
+    address: 171
+    value_type: S_WORD
+    unit_of_measurement: W
+    device_class: power
+    state_class: measurement
+    force_update: true
+    accuracy_decimals: 0
+
+  - platform: modbus_controller
+    modbus_controller_id: deye_inverter
+    name: Grid L1 voltage
+    id: grid_l1_voltage
+    register_type: holding
+    address: 150
+    value_type: U_WORD
+    unit_of_measurement: V
+    device_class: voltage
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: deye_inverter
+    name: Grid L2 voltage
+    register_type: holding
+    address: 151
+    value_type: U_WORD
+    unit_of_measurement: V
+    device_class: voltage
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: deye_inverter
+    name: AC load frequency candidate
+    register_type: holding
+    address: 192
+    disabled_by_default: true
+    entity_category: diagnostic
+    value_type: U_WORD
+    unit_of_measurement: Hz
+    device_class: frequency
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+
+  - platform: modbus_controller
+    modbus_controller_id: deye_inverter
+    name: Daily grid import
+    register_type: holding
+    address: 76
+    value_type: U_WORD
+    unit_of_measurement: kWh
+    device_class: energy
+    state_class: total_increasing
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: deye_inverter
+    name: Daily grid export
+    register_type: holding
+    address: 77
+    value_type: U_WORD
+    unit_of_measurement: kWh
+    device_class: energy
+    state_class: total_increasing
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # Register 78 and register 80 form the non-contiguous 32-bit import counter.
+  - platform: modbus_controller
+    modbus_controller_id: deye_inverter
+    id: total_grid_import_low_word
+    register_type: holding
+    address: 78
+    value_type: U_WORD
+    internal: true
+
+  - platform: modbus_controller
+    modbus_controller_id: deye_inverter
+    id: total_grid_import_high_word
+    register_type: holding
+    address: 80
+    value_type: U_WORD
+    internal: true
+
+  - platform: template
+    name: Total grid import
+    id: total_grid_import
+    unit_of_measurement: kWh
+    device_class: energy
+    state_class: total_increasing
+    accuracy_decimals: 1
+    update_interval: 30s
+    lambda: |-
+      const float high_word = id(total_grid_import_high_word).state;
+      const float low_word = id(total_grid_import_low_word).state;
+      if (isnan(high_word) || isnan(low_word)) {
+        return {};
+      }
+      const uint32_t raw =
+          (static_cast<uint32_t>(high_word) << 16) |
+          static_cast<uint32_t>(low_word);
+      return static_cast<float>(raw) * 0.1f;
+
+  - platform: modbus_controller
+    modbus_controller_id: deye_inverter
+    name: Total grid export
+    id: total_grid_export
+    register_type: holding
+    address: 81
+    value_type: U_DWORD_R
+    unit_of_measurement: kWh
+    device_class: energy
+    state_class: total_increasing
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # Load/output telemetry.
+  - platform: modbus_controller
+    modbus_controller_id: deye_inverter
+    name: Load power
+    on_value:
+      then:
+        - lambda: if (!isnan(x)) id(last_load_ms) = millis();
+    id: load_power
+    register_type: holding
+    address: 178
+    value_type: S_WORD
+    unit_of_measurement: W
+    device_class: power
+    state_class: measurement
+    force_update: true
+    accuracy_decimals: 0
+    disabled_by_default: true
+    entity_category: diagnostic
+
+  - platform: modbus_controller
+    modbus_controller_id: deye_inverter
+    name: Total load consumption
+    id: total_load_consumption
+    register_type: holding
+    address: 85
+    value_type: U_DWORD_R
+    unit_of_measurement: kWh
+    device_class: energy
+    state_class: total_increasing
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    disabled_by_default: true
+    entity_category: diagnostic
+
+  - platform: modbus_controller
+    modbus_controller_id: deye_inverter
+    name: Inverter output power
+    register_type: holding
+    address: 175
+    value_type: S_WORD
+    unit_of_measurement: W
+    device_class: power
+    state_class: measurement
+    force_update: true
+    accuracy_decimals: 0
+
+  - platform: modbus_controller
+    modbus_controller_id: deye_inverter
+    name: AC temperature
+    register_type: holding
+    address: 91
+    value_type: S_WORD
+    unit_of_measurement: °C
+    device_class: temperature
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: deye_inverter
+    name: DC temperature
+    register_type: holding
+    address: 90
+    value_type: S_WORD
+    unit_of_measurement: °C
+    device_class: temperature
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+binary_sensor:
+  # This is a separate heartbeat. Raw Modbus sensors retain their last-known
+  # values after a link failure, so dashboards and automations must explicitly
+  # gate those values on this binary sensor.
+  - platform: template
+    name: Modbus heartbeat fresh
+    id: modbus_data_fresh
+    device_class: connectivity
+    entity_category: diagnostic
+    lambda: |-
+      const uint32_t now = millis();
+      const uint32_t readings[] = {id(last_modbus_response_ms), id(last_pv2_ms),
+          id(last_pv3_ms), id(last_soc_ms), id(last_battery_ms), id(last_grid_ms), id(last_load_ms)};
+      for (const uint32_t timestamp : readings) {
+        if (timestamp == 0U || static_cast<uint32_t>(now - timestamp) >= 90000U) return false;
+      }
+      return true;
+
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: Gateway IP address
+      entity_category: diagnostic
+    mac_address:
+      name: Gateway MAC address
+      entity_category: diagnostic
+
+  - platform: version
+    name: ESPHome version
+    entity_category: diagnostic

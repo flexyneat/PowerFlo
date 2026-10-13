@@ -9,3 +9,5 @@ AGENTS.md
 Task Checklist.md
 task-status.md
 chatlog.md
+secrets.yaml
+.esphome/

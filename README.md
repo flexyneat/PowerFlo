@@ -16,6 +16,8 @@ A transparent, read-only Home Assistant card for solar, battery, grid and load p
 - Editable title, inverter name/model/image, inverter rating, battery capacity and solar-array nameplate size.
 - Transparent theme-native surfaces, responsive layout, 12/24-hour clock and reduced-motion support.
 - Single-file offline demo with simulated controls and system customization.
+- System insights: estimate bands, conditional load runtimes, opt-in observed taper, BMS limits, solar/MPPT detail, power/energy proportions, diagnostics, outage history and density presets.
+- Public Waveshare/Modbus commissioning guide and compile-verified read-only ESPHome profile, with live validation gates clearly separated.
 
 Production source is JavaScript with no runtime package dependencies. The card reads through Home Assistant's existing authenticated frontend connection. It does not call services, write inverter settings or access Modbus directly.
 
@@ -40,12 +42,12 @@ npm ci
 npm run verify
 ```
 
-The current source version is **0.3.0**. Build output:
+The current source version is **0.4.0**. Build output:
 
 ```text
 dist/powerflo-card.js
 dist/inverter-reference.png
-dist/PowerFlo-demo-v0.3.0.html
+dist/PowerFlo-demo-v0.4.0.html
 ```
 
 Install the JavaScript and PNG together. The HTML is a demo, not an HA resource; the source map is optional. Source changes do not replace previously published release assets.
@@ -63,13 +65,13 @@ HA serves `www/` files under `/local/`. If you have just created `www/` for the 
 
 ### 3. Register the module
 
-Enable Advanced mode in your user profile. Open **Settings → Dashboards**, then **Resources** in the three-dot menu. Add `/local/powerflo/powerflo-card.js?v=0.3.0` as a **JavaScript module**. For YAML-managed resources:
+Enable Advanced mode in your user profile. Open **Settings → Dashboards**, then **Resources** in the three-dot menu. Add `/local/powerflo/powerflo-card.js?v=0.4.0` as a **JavaScript module**. For YAML-managed resources:
 
 ```yaml
 lovelace:
   resource_mode: yaml
   resources:
-    - url: /local/powerflo/powerflo-card.js?v=0.3.0
+    - url: /local/powerflo/powerflo-card.js?v=0.4.0
       type: module
 ```
 
@@ -204,7 +206,7 @@ Recent demand is a separate trailing 15-minute window of `load_power`. Average i
 npm run build:demo
 ```
 
-Share `dist/PowerFlo-demo-v0.3.0.html` alone. JavaScript, styles, the PNG and MIT notice are embedded. Open it in a browser without a server, HA, Node or internet. Email previews may not run JavaScript; download and open the file instead.
+Share `dist/PowerFlo-demo-v0.4.0.html` alone. JavaScript, styles, the PNG and MIT notice are embedded. Open it in a browser without a server, HA, Node or internet. Email previews may not run JavaScript; download and open the file instead.
 
 Try battery modes, connected/disconnected/unknown/stale grid states, periods and chart inspection. The **Off-Grid** preset simulates a fresh outage: grid flow and solar production stop, and the battery supplies the protected load. Choosing another battery mode restores the connected-grid example; choosing another grid state exits the outage preset.
 
@@ -233,3 +235,34 @@ Automated/simulated checks are not hardware commissioning. Validate your live HA
 MIT; see [LICENSE](LICENSE). Copyright © 2026 PowerFlo contributors. Keep the copyright and permission notice when redistributing software; the generated demo and production JS include it.
 
 The transparent PNG is an AI-generated illustration, not an official manufacturer photograph, enclosure specification or certification. Model/name labels are user configuration; PowerFlo claims no manufacturer affiliation.
+
+## System insights (0.4.0)
+
+Open **System insights** for advanced detail; both target/full estimates stay visible in the battery card. Set `density` to `compact`, `standard` (default), or `expanded` in YAML/editor. Compact reduces spacing, not essential readings; expanded opens insights initially.
+
+| Feature | Behavior and boundary |
+|---|---|
+| Estimate bands | Inverse-rate scenarios using observed rate variation (10–75% spread); not calibrated probability intervals. Non-ready states have no numeric band. |
+| Load runtime scenarios | Capacity above reserve × `runtime_load_efficiency` ÷ current/average/peak AC load. Efficiency defaults to 0.9, configurable 0.5–1. No future solar/load growth; missing/zero load stays unavailable. |
+| Observed taper | Session-only, bounded low/high-SOC sample fitting with stable observed supply. `use_learned_taper: false` is default; true uses qualified learning or configured fallback. Not BMS characterization; no cross-reload persistence. |
+| BMS current indicators | Optional `battery_current`, `bms_charge_current_limit`, `bms_discharge_current_limit` in A. Near-ceiling label at ≥95% of relevant reported limit. No current limits changed. |
+| Solar utilization | Instantaneous fresh W / installed kWp nameplate. Not efficiency; can exceed 100%. |
+| MPPT detail | Existing three power slots plus optional `pv1_voltage/current` through `pv3_voltage/current` in V/A. Unmapped/stale channels remain unavailable. |
+| Supply / energy mix | Instantaneous PV/import/discharge proportions. Set `energy_sources_verified: true` only after confirming counter roles to also show Today/Week/Month gross-energy proportions. Storage cycling can double-count energy; neither is routed-load attribution. Inspect partial statistics/coverage. |
+| Data-quality diagnostics | Required mappings, numeric values, units, live numeric timestamps and history coverage. Transition-only binary/status entities are not falsely aged by last change. Polarity still requires physical validation. |
+| Outage timeline | Trailing 24-hour Recorder reads of connection AND freshness, at most once/minute, plus live-session observations. Unknown intervals are partial; missing records do not prove no outages. |
+| Density presets | Accessible native disclosure with responsive spacing. Installed card has no demo scenario dropdowns or theme toggle. |
+
+Learning needs three distinct charging samples below the configured taper start and three at ≥95% SOC. Duplicate timestamps/unstable supply (>10% source change) are excluded; telemetry gaps/backward SOC reset the session. Qualified rate-floor fitting is clamped 0.05–1 and affects estimates only when opted in. Inferences may reflect source/BMS constraints, not battery chemistry.
+
+## Waveshare / Modbus commissioning
+
+[Open the public HTML commissioning guide](waveshare-commissioning-guide.html), with [read-only ESPHome YAML](waveshare-readonly.yaml) and [secrets template](secrets.example.yaml). Download and open the HTML locally; it has no external assets and includes wiring/data-path diagrams, register candidates, security settings, acceptance gates and rollback.
+
+The **Waveshare ESP32-S3-RS485-CAN** is a programmable Wi-Fi/ESPHome gateway, not an Ethernet Modbus gateway. Official board documentation supports TX GPIO17, RX GPIO18 and UART `flow_control_pin: GPIO21`. The gateway uses RS485 for inverter telemetry; battery CAN remains separate. Compatibility with PowerFlo is via documented HA entities, not a device driver inside the card.
+
+The supplied register profile is provisional for the SG02LP1 family. No official exact-firmware map was verified for MAIN A028-1727 / HMI 0000-C382. Do not invent operating-status, grid-relay or BMS-limit registers. Supply independently validated status/connection entities. Register 192 is a load-frequency candidate, not confirmed grid frequency; 171 is channel-specific CT telemetry. Battery current scaling and protected-load channel role need display/read-back checks. YAML validation, firmware compilation and live hardware commissioning are distinct gates; see release notes for actual evidence.
+
+The gateway profile sets `force_update: true` on numeric measurement sensors so unchanged polled values still update HA/frontend timestamps. Its Modbus freshness binary requires recent PV1/2/3, SOC, battery-power, grid-power and load-candidate responses (90-second expiry), not merely a successful PV read. Last-known readings remain visible as stale diagnostics; this heartbeat proves communications coverage, not correct channel semantics. Configure Recorder retention deliberately because forced numeric reports increase measurement rows. Daily energy counters are not forced like instantaneous measurements.
+
+Validation evidence for 0.4.0: YAML schema validation and full firmware compilation succeeded with ESPHome 2026.9.1 / ESP-IDF 5.5.5 for ESP32-S3, using isolated validation-only dummy credentials. No device was flashed; compiled dummy firmware is deliberately not distributed. Generate your own secrets and compile your private configuration before deployment. Board transport/configuration alignment is confirmed; exact-firmware register semantics and physical operation remain commissioning gates.

@@ -27,6 +27,7 @@
     pv1_power: 1620, pv2_power: 1580, pv3_power: 1620, battery_soc: 85, battery_power: -2000,
     battery_voltage: 53.4, battery_temperature: 32.4, grid_power: 240, grid_voltage: 230.4,
     grid_frequency: 50, load_power: 3000, solar_today: 12.4, grid_today: 3.1, load_today: 10.2, battery_today: 1.8 };
+  Object.assign(values,{pv1_voltage:320,pv1_current:5.1,pv2_voltage:315,pv2_current:5,pv3_voltage:322,pv3_current:5,battery_current:-37.5,bms_charge_current_limit:100,bms_discharge_current_limit:200});
   const hass = { config: { time_zone: "Africa/Lagos" }, states: {},
     /**
      * Supplies synthetic history bounded to the requested date range.
@@ -41,6 +42,7 @@
       const ids = query.searchParams.get("filter_entity_id").split(",");
       return ids.map(id => {
         const key = Object.keys(entities).find(key => entities[key] === id);
+        if(key==="grid_connected"||key==="freshness")return [{entity_id:id,state:key==="freshness"?"on":"on",last_changed:new Date(start).toISOString()},{entity_id:id,state:String(values[key]),last_changed:new Date(end).toISOString()}];
         // Explicitly simulated instantaneous demand, distinct from cumulative energy traces.
         if (key === "load_power") return Array.from({length:61},(_,index)=>({entity_id:id,
           state:String(index===60 ? values.load_power : 2300+500*Math.sin(index*.7)+(index===42?1300:0)),
@@ -84,8 +86,11 @@
     } };
   /** Publishes a simulated fresh sensor report every five seconds. */
   function publish() {
+    values.battery_current=values.battery_power/values.battery_voltage;
+    for(const i of [1,2,3])values[`pv${i}_current`]=values[`pv${i}_power`]/values[`pv${i}_voltage`];
     const now = new Date().toISOString();
-    hass.states = Object.fromEntries(Object.entries(entities).map(([key, id]) => [id, { state: String(values[key]), attributes: {}, last_updated: now }]));
+    const unit=key=>key.endsWith("_voltage")?"V":key.includes("current")?"A":key==="battery_soc"?"%":key.endsWith("_power")?"W":key.endsWith("_today")?"kWh":undefined;
+    hass.states = Object.fromEntries(Object.entries(entities).map(([key, id]) => [id, { state: String(values[key]), attributes: {unit_of_measurement:unit(key)}, last_updated: now }]));
     hass.states["sun.sun"] = { state: "above_horizon", attributes: { next_setting: new Date(Date.now()+5*3600000).toISOString() } };
     card.hass = hass;
   }

@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.4.0
+
+- Add read-only estimate bands, load runtime scenarios, guarded opt-in session taper learning, outage Recorder/live timeline, BMS current indicators, solar utilization, MPPT detail, indicative source mix, diagnostics/coverage and three density presets.
+- Include reviewed Waveshare/Modbus HTML commissioning guide, read-only YAML and secrets template; correct UART direction control and document firmware/register-role validation gates.
+- Align numeric timestamp reporting with native HA updates and require a core-register freshness quorum; avoid falsely aging transition-only binary/status flags.
 
 - Render fresh confirmed grid disconnection in red, with a static red X on the image-safe desktop connector lane; hide the marker for unknown/stale/reconnected states.
 - Fix demo sun/moon switching by toggling SVG hidden attributes rather than an HTMLElement-only property.
