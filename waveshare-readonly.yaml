@@ -12,6 +12,10 @@ substitutions:
 
 # Candidate SG02LP1 read-only map. Verify scales/roles against your actual
 # firmware before mapping these entities into PowerFlo; not a hardware-certified profile.
+# Firmware identity confirmed; register semantics awaiting live validation.
+# Observed MAIN A028-1727 / HMI 0000-C382 / protocol 0201, SUN-12K-SG02LP1-EU-AM3.
+# Protocol 0201 is identity metadata, not baud rate, address or register-map proof.
+# No firmware-based scale override is justified without exact-model live read-back.
 
 # Updated whenever a reliable Modbus value is received. It powers a separate
 # freshness heartbeat; it does not invalidate the raw sensors' last-known values.

@@ -3,6 +3,15 @@
 import {readFile} from "node:fs/promises";
 import {describe,it,expect} from "vitest";
 describe("Waveshare commissioning contract",()=>{
+  it("distinguishes confirmed firmware identity from unvalidated register semantics",async()=>{
+    // An identity screenshot must never silently select a scale or certify a register map.
+    for(const file of ["README.md","waveshare-commissioning-guide.html","waveshare-readonly.yaml"]){
+      const content=await readFile(new URL(`../${file}`,import.meta.url),"utf8");
+      for(const identity of ["A028-1727","0000-C382","0201"])expect(content).toContain(identity);
+      expect(content).toContain("Firmware identity confirmed");
+      expect(content).toContain("register semantics awaiting live validation");
+    }
+  });
   it("keeps ESP32 UART direction control and excludes inverter writes/unsafe secret storage",async()=>{
     const yaml=await readFile(new URL("../waveshare-readonly.yaml",import.meta.url),"utf8");
     expect(yaml).toMatch(/tx_pin: GPIO17/);expect(yaml).toMatch(/rx_pin: GPIO18/);
