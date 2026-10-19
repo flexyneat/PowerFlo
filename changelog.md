@@ -1,11 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.5.0
 
 - Add compact conditional overnight readiness with HA-local/DST deadline, reserve shortfall and explicit manual/history/recent/current demand basis.
 - Add ephemeral what-if load/capacity/reserve/deadline simulation without changing live configuration; preserve both Battery estimates.
 - Add editor-only guided entity checks, sign confirmation and explicit review/save/cancel; preserve direct/YAML configuration.
-- Extend model/lifecycle/UI tests and offline development demo, using one simulated 16 kWh battery. No version/tag/release change.
+- Extend model/lifecycle/UI tests and offline demo, using one simulated 16 kWh battery; explicitly label next-local-day deadlines as tomorrow.
+- Publish updated installation files, standalone demo, README and Waveshare commissioning documentation; preserve all existing features and JavaScript-only read-only behavior.
 
 ## 0.4.1
 

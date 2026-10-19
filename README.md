@@ -17,6 +17,9 @@ A transparent, read-only Home Assistant card for solar, battery, grid and load p
 - Transparent theme-native surfaces, responsive layout, 12/24-hour clock and reduced-motion support.
 - Single-file offline demo with simulated controls and system customization.
 - System insights: estimate bands, conditional load runtimes, opt-in observed taper, BMS limits, solar/MPPT detail, power/energy proportions, diagnostics, outage history and density presets.
+- Overnight readiness with local morning deadline, planning reserve, conditional morning SOC and explicit demand-data provenance.
+- On-demand what-if load/capacity simulation that never changes installed settings.
+- Editor-only guided entity mapping with role/sign confirmation and explicit review/save/cancel.
 - Public Waveshare/Modbus commissioning guide and compile-verified read-only ESPHome profile, with live validation gates clearly separated.
 
 Production source is JavaScript with no runtime package dependencies. The card reads through Home Assistant's existing authenticated frontend connection. It does not call services, write inverter settings or access Modbus directly.
@@ -42,12 +45,12 @@ npm ci
 npm run verify
 ```
 
-The current source version is **0.4.1**. Build output:
+The current source version is **0.5.0**. Build output:
 
 ```text
 dist/powerflo-card.js
 dist/inverter-reference.png
-dist/PowerFlo-demo-v0.4.1.html
+dist/PowerFlo-demo-v0.5.0.html
 ```
 
 Install the JavaScript and PNG together. The HTML is a demo, not an HA resource; the source map is optional. Source changes do not replace previously published release assets.
@@ -65,13 +68,13 @@ HA serves `www/` files under `/local/`. If you have just created `www/` for the 
 
 ### 3. Register the module
 
-Enable Advanced mode in your user profile. Open **Settings → Dashboards**, then **Resources** in the three-dot menu. Add `/local/powerflo/powerflo-card.js?v=0.4.1` as a **JavaScript module**. For YAML-managed resources:
+Enable Advanced mode in your user profile. Open **Settings → Dashboards**, then **Resources** in the three-dot menu. Add `/local/powerflo/powerflo-card.js?v=0.5.0` as a **JavaScript module**. For YAML-managed resources:
 
 ```yaml
 lovelace:
   resource_mode: yaml
   resources:
-    - url: /local/powerflo/powerflo-card.js?v=0.4.1
+    - url: /local/powerflo/powerflo-card.js?v=0.5.0
       type: module
 ```
 
@@ -206,7 +209,7 @@ Recent demand is a separate trailing 15-minute window of `load_power`. Average i
 npm run build:demo
 ```
 
-Share `dist/PowerFlo-demo-v0.4.1.html` alone. JavaScript, styles, the PNG and MIT notice are embedded. Open it in a browser without a server, HA, Node or internet. Email previews may not run JavaScript; download and open the file instead.
+Share `dist/PowerFlo-demo-v0.5.0.html` alone. JavaScript, styles, the PNG and MIT notice are embedded. Open it in a browser without a server, HA, Node or internet. Email previews may not run JavaScript; download and open the file instead.
 
 Try battery modes, connected/disconnected/unknown/stale grid states, periods and chart inspection. The **Off-Grid** preset simulates a fresh outage: grid flow and solar production stop, and the battery supplies the protected load. Choosing another battery mode restores the connected-grid example; choosing another grid state exits the outage preset.
 
@@ -255,9 +258,9 @@ Open **System insights** for advanced detail; both target/full estimates stay vi
 
 Learning needs three distinct charging samples below the configured taper start and three at ≥95% SOC. Duplicate timestamps/unstable supply (>10% source change) are excluded; telemetry gaps/backward SOC reset the session. Qualified rate-floor fitting is clamped 0.05–1 and affects estimates only when opted in. Inferences may reflect source/BMS constraints, not battery chemistry.
 
-## Overnight readiness, simulator and guided setup (unreleased)
+## Overnight readiness, simulator and guided setup (0.5.0)
 
-These additions preserve both Battery estimates, existing features, transparent surfaces and JavaScript-only read-only behavior. No new Modbus registers are required. Configure your **actual installed total kWh**; the development demo illustrates one 16 kWh battery. A hypothetical expansion never changes installed capacity. Per-battery-pack visibility is not included.
+These additions preserve both Battery estimates, existing features, transparent surfaces and JavaScript-only read-only behavior. No new Modbus registers are required. Configure your **actual installed total kWh**; the demo illustrates one 16 kWh battery. A hypothetical expansion never changes installed capacity. Per-battery-pack visibility is not included.
 
 ```yaml
 readiness_enabled: true
