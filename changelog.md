@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Add compact conditional overnight readiness with HA-local/DST deadline, reserve shortfall and explicit manual/history/recent/current demand basis.
+- Add ephemeral what-if load/capacity/reserve/deadline simulation without changing live configuration; preserve both Battery estimates.
+- Add editor-only guided entity checks, sign confirmation and explicit review/save/cancel; preserve direct/YAML configuration.
+- Extend model/lifecycle/UI tests and offline development demo, using one simulated 16 kWh battery. No version/tag/release change.
+
 ## 0.4.1
 
 - Confirm observed MAIN A028-1727 / HMI 0000-C382 / protocol 0201 identity in README, commissioning guide and read-only profile notes; distinguish identity confirmation from exact-register validation.

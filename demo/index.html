@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>PowerFlo · simulated preview</title>
+  <title>PowerFlo · Phase 1 development preview</title>
   <style>
     :root{color-scheme:dark;--canvas:#111c28;--primary-text-color:#edf3f8;--secondary-text-color:#aebcc9;--divider-color:#344454;--ha-card-border-color:#526778}
     :root[data-theme="light"]{color-scheme:light;--canvas:#eef2f5;--primary-text-color:#1c2a37;--secondary-text-color:#4f6070;--divider-color:#bac6d1;--ha-card-border-color:#899dac}
@@ -20,9 +20,9 @@
   import { demoScenario, initializeTheme } from "./controls.js";
   initializeTheme(document.documentElement,document.querySelector("#theme"),matchMedia("(prefers-color-scheme: dark)"));
   const card = document.querySelector("powerflo-card");
-  const entities = Object.fromEntries(Object.keys(DEFAULT_CONFIG.entities).map(key => [key, `sensor.demo_${key}`]));
+  const entities = Object.fromEntries(Object.keys(DEFAULT_CONFIG.entities).map(key => [key, `${["freshness","grid_connected"].includes(key)?"binary_sensor":"sensor"}.demo_${key}`]));
   // This explicit example profile is not a claim about the viewer's installed hardware.
-  card.setConfig({ entities,title:"Deye Energy",inverter_name:"DEYE",inverter_model:"SUN-12K-SG02LP1-EU-AM3",inverter_capacity_kw:12,battery_capacity_kwh:32.14,solar_capacity_kw:9.6 });
+  card.setConfig({ entities,title:"Deye Energy",inverter_name:"DEYE",inverter_model:"SUN-12K-SG02LP1-EU-AM3",inverter_capacity_kw:12,battery_capacity_kwh:16,solar_capacity_kw:9.6 });
   const values = { freshness: "on", inverter_status: "normal", grid_connected: "on", solar_power: 4820,
     pv1_power: 1620, pv2_power: 1580, pv3_power: 1620, battery_soc: 85, battery_power: -2000,
     battery_voltage: 53.4, battery_temperature: 32.4, grid_power: 240, grid_voltage: 230.4,
@@ -44,9 +44,12 @@
         const key = Object.keys(entities).find(key => entities[key] === id);
         if(key==="grid_connected"||key==="freshness")return [{entity_id:id,state:key==="freshness"?"on":"on",last_changed:new Date(start).toISOString()},{entity_id:id,state:String(values[key]),last_changed:new Date(end).toISOString()}];
         // Explicitly simulated instantaneous demand, distinct from cumulative energy traces.
-        if (key === "load_power") return Array.from({length:61},(_,index)=>({entity_id:id,
-          state:String(index===60 ? values.load_power : 2300+500*Math.sin(index*.7)+(index===42?1300:0)),
-          last_changed:new Date(start+(end-start)*index/60).toISOString()}));
+        if (key === "load_power") {
+          const count=Math.ceil((end-start)/30000);
+          return Array.from({length:count+1},(_,index)=>({entity_id:id,
+            state:String(index===count ? values.load_power : 1000+200*Math.sin(index*.07)),
+            last_changed:new Date(start+(end-start)*index/count).toISOString()}));
+        }
         const maximum = Number(values[key]);
         const output = [];
         for (let day = start; day <= end; day += 86400000) {
@@ -93,6 +96,7 @@
     hass.states = Object.fromEntries(Object.entries(entities).map(([key, id]) => [id, { state: String(values[key]), attributes: {unit_of_measurement:unit(key)}, last_updated: now }]));
     hass.states["sun.sun"] = { state: "above_horizon", attributes: { next_setting: new Date(Date.now()+5*3600000).toISOString() } };
     card.hass = hass;
+    document.querySelector("powerflo-card-editor").hass=hass;
   }
   publish();
   const editor=document.querySelector("powerflo-card-editor");

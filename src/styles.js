@@ -1,9 +1,10 @@
 /** @fileoverview Display and editor stylesheet entrypoints. */
 import { BREAKPOINTS, tokenDeclarations } from "./tokens.js";
 import { displayStyles } from "./display-styles.js";
+import { phase1Styles } from "./phase1-styles.js";
 
 /** @returns {string} Unified display stylesheet. */
-export function cardStyles() { return displayStyles(); }
+export function cardStyles() { return displayStyles()+phase1Styles(); }
 
 /**
  * Returns theme-aware visual editor styles.

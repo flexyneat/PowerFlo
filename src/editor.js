@@ -4,6 +4,8 @@
 
 import { normalizeConfig } from "./config.js";
 import { editorStyles } from "./styles.js";
+import { SetupGuide } from "./setup-guide.js";
+import { phase1Styles } from "./phase1-styles.js";
 
 const IMAGE_TYPES = Object.freeze(["image/png", "image/jpeg", "image/webp"]);
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
@@ -50,6 +52,7 @@ export class PowerFloEditor extends HTMLElement {
    */
   set hass(hass) {
     this._hass = hass;
+    this.guide?.updateHass(hass);
   }
 
   /**
@@ -60,6 +63,7 @@ export class PowerFloEditor extends HTMLElement {
     this.config = normalizeConfig(config);
     if (!this.rendered) this.render();
     this.sync();
+    this.guide.configure(this.config);
   }
 
   /** Creates the editor DOM once using trusted static markup. */
@@ -67,8 +71,11 @@ export class PowerFloEditor extends HTMLElement {
     const root = this.shadowRoot;
     root.innerHTML = `<style>${editorStyles()}</style><div class="editor"><fieldset data-section="appearance"><legend>Appearance</legend></fieldset><fieldset data-section="behavior"><legend>Flow behavior</legend></fieldset><fieldset data-section="entities"><legend>Entities</legend><p class="hint">Use complete entity IDs. Required mappings are marked with an asterisk.</p></fieldset><div class="error" role="status" aria-live="polite"></div></div>`;
     const appearance = root.querySelector('[data-section="appearance"]');
+    root.querySelector("style").textContent+=phase1Styles();
     const behavior = root.querySelector('[data-section="behavior"]');
     const entities = root.querySelector('[data-section="entities"]');
+    this.guide=new SetupGuide(config=>{this.config=config;this.sync();this.guide.configure(config);this.dispatchEvent(new CustomEvent("config-changed",{detail:{config},bubbles:true,composed:true}));});
+    root.querySelector(".editor").prepend(this.guide.element);this.guide.updateHass(this._hass);
     const appearanceFields = [
       ["title", "Card title", "text"],
       ["inverter_name", "Inverter name", "text"],
@@ -85,6 +92,10 @@ export class PowerFloEditor extends HTMLElement {
     behavior.append(this.createField("runtime_load_efficiency","Load runtime efficiency assumption (0.5–1)","number"));
     behavior.append(this.createSelectField("energy_sources_verified","Counters are PV production / grid import / battery discharge",[["false","Not verified"],["true","Verified roles"]]));
     behavior.append(this.createSelectField("clock_format", "Clock format", [["12", "12-hour"], ["24", "24-hour"]]));
+    behavior.append(this.createSelectField("readiness_enabled","Overnight readiness",[["true","Show readiness and simulator"],["false","Hide readiness and simulator"]]));
+    behavior.append(this.createField("readiness_deadline","Morning deadline (HA local time)","time"));
+    behavior.append(this.createField("readiness_average_w","Manual average load (W; blank uses observations)","number"));
+    behavior.append(this.createField("readiness_min_coverage","Required demand history coverage (0.5–1)","number"));
     behavior.append(this.createSelectField("battery_positive", "Positive battery power", [["discharge", "Discharging"], ["charge", "Charging"]]));
     behavior.append(this.createSelectField("grid_positive", "Positive grid power", [["import", "Importing"], ["export", "Exporting"]]));
     behavior.append(this.createField("flow_threshold_w", "Flow starts above (W)", "number"));
@@ -184,7 +195,8 @@ export class PowerFloEditor extends HTMLElement {
     if (!path) return;
     try {
       let value = control.type === "number" ? Number(control.value) : control.value;
-      if(["use_learned_taper","energy_sources_verified"].includes(path))value=control.value==="true";
+      if(["use_learned_taper","energy_sources_verified","readiness_enabled"].includes(path))value=control.value==="true";
+      if(path==="readiness_average_w"&&control.value==="")value=null;
       if (path === "image_upload" && control instanceof HTMLInputElement && control.files?.[0]) {
         value = await readImageFile(control.files[0]);
         this.config = normalizeConfig({ ...this.config, inverter_image: value });
@@ -198,6 +210,7 @@ export class PowerFloEditor extends HTMLElement {
         this.config = normalizeConfig({ ...this.config, [path]: value });
       }
       this.setError("");
+      this.guide.configure(this.config);
       this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: this.config }, bubbles: true, composed: true }));
     } catch (error) {
       this.setError(error instanceof Error ? error.message : "Configuration could not be updated");

@@ -255,6 +255,44 @@ Open **System insights** for advanced detail; both target/full estimates stay vi
 
 Learning needs three distinct charging samples below the configured taper start and three at ≥95% SOC. Duplicate timestamps/unstable supply (>10% source change) are excluded; telemetry gaps/backward SOC reset the session. Qualified rate-floor fitting is clamped 0.05–1 and affects estimates only when opted in. Inferences may reflect source/BMS constraints, not battery chemistry.
 
+## Overnight readiness, simulator and guided setup (unreleased)
+
+These additions preserve both Battery estimates, existing features, transparent surfaces and JavaScript-only read-only behavior. No new Modbus registers are required. Configure your **actual installed total kWh**; the development demo illustrates one 16 kWh battery. A hypothetical expansion never changes installed capacity. Per-battery-pack visibility is not included.
+
+```yaml
+readiness_enabled: true
+readiness_deadline: "06:00"       # Home Assistant local time, not the browser's zone
+readiness_average_w: null         # blank/null uses observations; 0 means a real zero-load assumption
+readiness_min_coverage: 0.8       # accepted historical coverage, range 0.5–1
+battery_capacity_kwh: 16         # set your actual installed total
+battery_reserve_soc: 20          # reused planning reserve, not an equipment command
+runtime_load_efficiency: 0.9     # effective usable-energy factor including losses/overhead once
+```
+
+### Overnight readiness
+
+The compact row below the flow diagram estimates supply until the morning deadline **if grid supply fails now** (or remains off), with **no future solar or grid charging credited**. It is energy planning, not a backup guarantee, shutdown setting or compressor-surge/BMS power assessment. Open Readiness assumptions for provenance and limitations. Fresh SOC in % and fresh telemetry are required; missing/invalid values remain unavailable, not zero.
+
+Demand precedence: explicit manual watts; otherwise a qualified three-day matching-local-time profile; otherwise a sufficiently covered recent 15-minute average; otherwise fresh instantaneous demand. Fallbacks are labelled and are not presented as overnight historical profiles. Each required half-hour historical bucket needs configured coverage and observations on at least two local dates. Unknown values and gaps beyond 60 seconds remain uncovered. Slow-reporting sensors may therefore use fallback. Recorder must include the mapped protected-load sensor; forced numeric updates can improve coverage but increase storage.
+
+One filtered protected-load history read covers three days, at most hourly while visible; manual mode skips it. User retries are paced at least one minute apart. Configuration changes/detachment invalidate late responses. Missing/invalid HA time zones make estimates unavailable. The deadline uses HA local calendar and real elapsed time through midnight/DST. A passed deadline moves to the next local day; a nonexistent DST clock uses the first valid minute after it, and repeated clocks use the first occurrence on the selected day.
+
+Usable AC energy above reserve is `capacity_kWh × max(0, SOC − reserve_SOC) / 100 × effective_factor`; demand is `average_AC_watts × hours / 1000`. Morning SOC is `SOC − 100 × demand_kWh / (capacity_kWh × effective_factor)`. Displayed SOC clamps to 0–100 but reserve shortfall is separately retained. Do not subtract standby loss twice when already included in the factor. Capacity aging and future demand remain assumptions.
+
+Illustration only: one 16 kWh battery, 95% SOC, 20% reserve, assumed 0.9 factor and eight hours at 1.20 kW -> 10.8 kWh above reserve, 9.6 kWh demand and about 28% morning SOC. This is not measured battery performance.
+
+### What-if simulator
+
+Open **Explore scenario** for extra average watts, hypothetical total capacity, reserve and deadline. Compare baseline/scenario morning SOC, time to reserve and reserve shortfall. The baseline follows live telemetry; both results use the same scenario deadline. Hypothetical expanded storage starts at current SOC. The example above plus 100 W average gives about 23%; hypothetical 32 kWh gives about 59%.
+
+Inputs are ephemeral, not persisted or passed to equipment or saved configuration. Reset restores scenario defaults. Blank/invalid inputs produce an error instead of a misleading result. All current readings and both Battery estimates remain accessible. Average extra watts are not compressor running/startup watts; representative measured kWh/day is preferable for appliances.
+
+### Guided entity setup
+
+In the visual editor, expand **Guided entity setup**: select candidates, check representations/physical roles and power signs, then explicitly save reviewed mappings. This emits HA's normal `config-changed` display event; the dashboard's own Save action still applies. Cancel discards the isolated draft. Existing direct fields/YAML, optional mappings, identity, image and ratings remain supported. No equipment settings are changed.
+
+Candidates come from existing HA entities, never physical device discovery, and are not auto-applied. Required power is W, SOC is %, and connection/freshness use explicit boolean binary sensors. Convert upstream if needed; no silent scaling. Duplicate roles, incompatible units, invalid values and unavailable entities are flagged. Save requires independent role and sign confirmation; value/unit compatibility is not commissioning proof. Zero watts never proves grid disconnection. Do not interrupt live wiring to verify roles. Optional data can stay unmapped. Neither the guide nor demo scenario dropdowns appear on the everyday installed card.
+
 ## Waveshare / Modbus commissioning
 
 [Open the public HTML commissioning guide](waveshare-commissioning-guide.html), with [read-only ESPHome YAML](waveshare-readonly.yaml) and [secrets template](secrets.example.yaml). Download and open the HTML locally; it has no external assets and includes wiring/data-path diagrams, register candidates, security settings, acceptance gates and rollback.

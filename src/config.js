@@ -25,6 +25,10 @@
  * @property {boolean} use_learned_taper Opt-in to session-observed taper; not a calibrated BMS model.
  * @property {number} runtime_load_efficiency Assumed DC-to-AC efficiency for load scenarios.
  * @property {boolean} energy_sources_verified User confirmed production/import/discharge counter meanings.
+ * @property {boolean} readiness_enabled Show conditional overnight readiness and scenario tools.
+ * @property {string} readiness_deadline Morning HH:mm in Home Assistant's time zone.
+ * @property {number|null} readiness_average_w Optional manual average AC watts; null selects observed demand.
+ * @property {number} readiness_min_coverage Minimum observed coverage before accepting a historical bucket.
  * @property {Record<string, string>} statistics Optional long-term energy statistic IDs.
  * @property {string} inverter_image Validated local or data image URL.
  * @property {"12" | "24"} clock_format Clock presentation.
@@ -55,6 +59,10 @@ export const DEFAULT_CONFIG = Object.freeze({
   use_learned_taper: false,
   runtime_load_efficiency: 0.9,
   energy_sources_verified: false,
+  readiness_enabled: true,
+  readiness_deadline: "06:00",
+  readiness_average_w: null,
+  readiness_min_coverage: 0.8,
   statistics: Object.freeze({ solar: "", grid: "", load: "", battery: "" }),
   inverter_image: "",
   clock_format: "12",
@@ -158,6 +166,10 @@ export function normalizeConfig(input = {}) {
     use_learned_taper: input.use_learned_taper===true,
     energy_sources_verified: input.energy_sources_verified===true,
     runtime_load_efficiency: finiteInRange(input.runtime_load_efficiency,DEFAULT_CONFIG.runtime_load_efficiency,0.5,1),
+    readiness_enabled: input.readiness_enabled !== false,
+    readiness_deadline: /^([01]\d|2[0-3]):[0-5]\d$/.test(input.readiness_deadline??"")?input.readiness_deadline:DEFAULT_CONFIG.readiness_deadline,
+    readiness_average_w: input.readiness_average_w===null||input.readiness_average_w===undefined||input.readiness_average_w===""?null:finiteInRange(input.readiness_average_w,null,0,1000000),
+    readiness_min_coverage: finiteInRange(input.readiness_min_coverage,0.8,0.5,1),
     statistics: Object.fromEntries(Object.keys(DEFAULT_CONFIG.statistics).map(key => [key, String(input.statistics?.[key] ?? "").trim().slice(0, 300)])),
     inverter_image: safeImageSource(input.inverter_image ?? DEFAULT_CONFIG.inverter_image),
     clock_format: input.clock_format === "24" ? "24" : "12",

@@ -16,6 +16,7 @@ import { loadEnergyStatistics } from "./statistics.js";
 import { DEMAND_LIMITS, demandSummary, loadDemandHistory } from "./load-trend.js";
 import { estimateBand,loadRuntimes,supplyMix,grossEnergyMix,solarUtilization,TaperSession,OutageSession,inspectEntities } from "./insights.js";
 import { loadOutageHistory } from "./outage-history.js";
+import { ReadinessPanel } from "./readiness-panel.js";
 
 const FLOW_NAMES = Object.freeze(["solar", "grid", "battery", "load"]);
 const SUMMARY_NAMES = Object.freeze(["solar", "grid", "load", "battery"]);
@@ -96,6 +97,7 @@ export class PowerFloCard extends HTMLElement {
    * @param {Object} rawConfig User configuration.
    */
   setConfig(rawConfig) {
+    this.readinessPanel?.reset();
     this.config = normalizeConfig(rawConfig);
     const errors = validateConfig(this.config);
     if (errors.length) throw new Error(errors.join("; "));
@@ -132,6 +134,7 @@ export class PowerFloCard extends HTMLElement {
     this.queueUpdate();
     this.loadHistoryIfNeeded();
     this.loadDemandIfNeeded();
+    if(this.visible)this.readinessPanel?.load(hass,this.config);
   }
 
   /** Connects clocks and visibility observers, including after a dashboard reattachment. */
@@ -141,7 +144,7 @@ export class PowerFloCard extends HTMLElement {
     this.clockTimer = window.setInterval(() => this.updateClock(), 1000);
     this.runtimeTimer = window.setInterval(() => {
       if (this.hassValue) this.updateRuntime(deriveModel(this.hassValue.states, this.config, this.polarity));
-      if (this.hassValue) { this.updateDemand(); this.loadDemandIfNeeded(); }
+      if (this.hassValue) { this.updateDemand(); this.loadDemandIfNeeded(); if(this.visible)this.readinessPanel?.load(this.hassValue,this.config); }
       if (Date.now() - this.lastDayCheck >= 60_000) {
         this.lastDayCheck = Date.now();
         this.loadHistoryIfNeeded();
@@ -166,6 +169,7 @@ export class PowerFloCard extends HTMLElement {
 
   /** Releases timers, sessions, pending callbacks, and observers. */
   disconnectedCallback() {
+    this.readinessPanel?.disconnect();
     window.clearInterval(this.clockTimer);
     window.clearInterval(this.runtimeTimer);
     if (this.pendingFrame) cancelAnimationFrame(this.pendingFrame);
@@ -310,6 +314,7 @@ export class PowerFloCard extends HTMLElement {
     const headings={ranges:"Estimate ranges",scenarios:"Load runtime scenarios",taper:"Observed charging taper",limits:"Battery current limits",solar:"Solar utilization",mppt:"MPPT detail",sources:"Indicative supply mix",quality:"Data quality",outages:"Observed outage timeline",coverage:"History coverage"};
     insights.innerHTML='<summary>System insights</summary><div class="insight-grid">'+Object.entries(headings).map(([key,title])=>`<section><h3>${title}</h3><p data-insight="${key}"></p></section>`).join("")+'</div>';
     this.shadowRoot.querySelector(".topology").after(insights);
+    this.readinessPanel=new ReadinessPanel();this.shadowRoot.querySelector(".topology").after(this.readinessPanel.element);
     this.shadowRoot.querySelector(".history-message .retry").addEventListener("click", () => this.loadHistoryIfNeeded(true));
     const slider = this.shadowRoot.querySelector("#history-cursor");
     slider.setAttribute("aria-describedby", "inspection-time");
@@ -622,6 +627,7 @@ export class PowerFloCard extends HTMLElement {
       ? (this.demandLoading ? "Loading recent demand" : "Collecting recent demand") : `Last 15 minutes · ${coverage<100 ? `partial ${coverage}% coverage` : "observed coverage"}`;
     this.setText('[data-load-coverage]',`${message}${freshness && freshness !== "fresh" ? ` · telemetry ${freshness}` : ""}`);
     this.shadowRoot.querySelector(".demand-retry").hidden = this.demandState !== "error";
+    if(this.hassValue&&this.latestModel)this.readinessPanel?.update(this.hassValue,this.config,this.latestModel,this.demandSamples);
   }
 
   /** @param {boolean} force User-requested retry. Reads one bounded series with revision and refresh guards. */
