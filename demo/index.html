@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>PowerFlo · Phase 2 development preview</title>
+  <title>PowerFlo · Precision / Phase 3 development preview</title>
   <style>
     :root{color-scheme:dark;--canvas:#111c28;--primary-text-color:#edf3f8;--secondary-text-color:#aebcc9;--divider-color:#344454;--ha-card-border-color:#526778}
     :root[data-theme="light"]{color-scheme:light;--canvas:#eef2f5;--primary-text-color:#1c2a37;--secondary-text-color:#4f6070;--divider-color:#bac6d1;--ha-card-border-color:#899dac}
@@ -22,7 +22,7 @@
   const card = document.querySelector("powerflo-card");
   const entities = Object.fromEntries(Object.keys(DEFAULT_CONFIG.entities).map(key => [key, `${["freshness","grid_connected"].includes(key)?"binary_sensor":"sensor"}.demo_${key}`]));
   // This explicit example profile is not a claim about the viewer's installed hardware.
-  card.setConfig({ entities,title:"Deye Energy",inverter_name:"DEYE",inverter_model:"SUN-12K-SG02LP1-EU-AM3",inverter_capacity_kw:12,battery_capacity_kwh:16,solar_capacity_kw:9.6,grid_power_verified:true });
+  card.setConfig({ entities,title:"Deye Energy",inverter_name:"DEYE",inverter_model:"SUN-12K-SG02LP1-EU-AM3",inverter_capacity_kw:12,battery_capacity_kwh:16,solar_capacity_kw:9.6,grid_power_verified:true,solar_forecast_sources:["demo_roof"],weather_entity:"weather.demo_home",readiness_average_w:450 });
   const values = { freshness: "on", inverter_status: "normal", grid_connected: "on", solar_power: 4820,
     pv1_power: 1620, pv2_power: 1580, pv3_power: 1620, battery_soc: 85, battery_power: -2000,
     battery_voltage: 53.4, battery_temperature: 32.4, grid_power: 240, grid_voltage: 230.4,
@@ -74,6 +74,10 @@
      * @returns {Promise<unknown>} Simulated statistics result.
      */
     callWS: async message => {
+      if(message.type==="energy/solar_forecast"){
+        const start=periodRange("today",new Date(),"Africa/Lagos").start.getTime();
+        return {demo_roof:{wh_hours:Object.fromEntries(Array.from({length:49},(_,i)=>[new Date(start+i*3600000).toISOString(),Math.max(0,Math.sin(((i%24)-6)/12*Math.PI))*5000]))}};
+      }
       if (message.type === "recorder/get_statistics_metadata") return message.statistic_ids.map(id => ({ statistic_id: id, has_sum: true, unit_class: "energy", unit_of_measurement: "kWh" }));
       const start = Date.parse(message.start_time);
       const end = Math.floor(Date.parse(message.end_time)/3600000)*3600000;
@@ -87,6 +91,13 @@
         }
         return [id, rows];
       }));
+    },
+    connection:{
+      /** @param {Function} callback Forecast consumer. @param {Object} message Read subscription. @returns {Promise<Function>} Synthetic subscription disposer; no network. */
+      subscribeMessage:async(callback,message)=>{
+        if(message.type!=="weather/subscribe_forecast")throw Error("Unsupported simulated subscription");
+        callback({type:"hourly",forecast:Array.from({length:48},(_,i)=>({datetime:new Date(Math.floor(Date.now()/3600000)*3600000+i*3600000).toISOString(),condition:i%3?"partlycloudy":"sunny",temperature:26+i%6,precipitation_probability:i%4*10}))});return ()=>{};
+      }
     } };
   /** Publishes a simulated fresh sensor report every five seconds. */
   function publish() {
@@ -96,6 +107,7 @@
     const unit=key=>key.endsWith("_voltage")?"V":key.includes("current")?"A":key==="battery_soc"?"%":key.endsWith("_power")?"W":key.endsWith("_today")?"kWh":undefined;
     hass.states = Object.fromEntries(Object.entries(entities).map(([key, id]) => [id, { state: String(values[key]), attributes: {unit_of_measurement:unit(key)}, last_updated: now }]));
     hass.states["sun.sun"] = { state: "above_horizon", attributes: { next_setting: new Date(Date.now()+5*3600000).toISOString() } };
+    hass.states["weather.demo_home"]={state:"partlycloudy",attributes:{supported_features:2,temperature:28,temperature_unit:"°C",attribution:"Simulated hourly weather · not a live Met.no forecast"}};
     card.hass = hass;
     document.querySelector("powerflo-card-editor").hass=hass;
   }

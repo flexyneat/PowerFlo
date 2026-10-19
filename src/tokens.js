@@ -72,15 +72,15 @@ export const TOKENS = Object.freeze({
   labelSize: "0.75rem",
   bodySize: "0.875rem",
   valueSize: "clamp(1.8rem, 3.2cqi, 2.8rem)",
-  titleSize: "clamp(1.5rem, 3cqi, 2.5rem)",
+  titleSize: "clamp(1.25rem, 2cqi, 1.75rem)",
   durationInstant: "100ms",
   durationMicro: "200ms",
   durationStandard: "320ms",
   easeOut: "cubic-bezier(0.22, 1, 0.36, 1)",
   easeInOut: "cubic-bezier(0.65, 0, 0.35, 1)",
   particleSize: "0.4rem",
-  lineWidth: "0.16rem",
-  chevronWidth: "2.25",
+  lineWidth: "0.1rem",
+  chevronWidth: "1.6",
   chartHeight: "3.1rem",
   chartPanelHeight: "11rem",
   chartLineWidth: "1.75",
@@ -90,12 +90,16 @@ export const TOKENS = Object.freeze({
   headingTracking: "-0.025em",
   microTracking: "0.06em",
   weightRegular: "450",
-  weightMedium: "600",
-  weightStrong: "750",
+  weightMedium: "550",
+  weightStrong: "650",
   lineHeightTight: "1.1",
   lineHeightBody: "1.4",
-  inverterWidth: "12rem",
-  artWidth: "17rem",
+  inverterWidth: "10rem",
+  artWidth: "12rem",
+  mobileArtWidth: "5rem",
+  forecastChartHeight: "12rem",
+  detailMeasure: "70ch",
+  detailSmallMeasure: "30rem",
   topologyHeight: "26rem",
   socSize: "5.5rem",
   socStrokeWidth: "5",
@@ -116,7 +120,7 @@ export const TOKENS = Object.freeze({
 export const BREAKPOINTS = Object.freeze({ compact: "58rem", narrow: "34rem" });
 
 /** Normalized connector canvas and inverter attachment positions. */
-export const FLOW_GEOMETRY = Object.freeze({ width: 1000, height: 600, arrowClearance: 8, cornerRadius: 18, leftPort: 0.3, rightPort: 0.7, sourceUpper: 0.28, sourceLower: 0.72, disconnectHalfSize: 6 });
+export const FLOW_GEOMETRY = Object.freeze({ width: 1000, height: 600, arrowClearance: 8, cornerRadius: 18, leftPort: 0.3, rightPort: 0.7, sourceUpper: 0.28, sourceLower: 0.72, lowerSideInset:0.18, disconnectHalfSize: 6 });
 
 /** Measured nontransparent bounds of the bundled PNG; uploaded art uses its full box. */
 export const DEFAULT_ART_BOUNDS = Object.freeze({ left: 144 / 1145, top: 140 / 1374, right: 1002 / 1145, bottom: 1251 / 1374 });

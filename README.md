@@ -2,9 +2,9 @@
 
 A transparent, read-only Home Assistant card for solar, battery, grid and load power flow. Map your existing entities, configure your system's ratings, and see what is supplying your loads now.
 
-![PowerFlo v0.4.1: charging battery estimates, protected-load trend and energy history](assets/current-design.png)
+![PowerFlo Precision: battery estimates, protected-load trend and energy history](assets/current-design.png)
 
-*Captured from the v0.4.1 offline demo; readings are simulated and demo controls are hidden. PowerFlo does not discover hardware, connect directly to an inverter or change inverter settings.*
+*Current development design; readings are simulated and demo controls are hidden. PowerFlo does not discover hardware, connect directly to an inverter or change inverter settings.*
 
 ## Features
 
@@ -19,6 +19,9 @@ A transparent, read-only Home Assistant card for solar, battery, grid and load p
 - System insights: estimate bands, conditional load runtimes, opt-in observed taper, BMS limits, solar/MPPT detail, power/energy proportions, diagnostics, outage history and density presets.
 - Overnight readiness with local morning deadline, planning reserve, conditional morning SOC and explicit demand-data provenance.
 - Independently switchable outage preparedness, opt-in equivalent-period chart overlays, and on-demand export/standby observations (Phase 2 development).
+- Precision layout with open transparent zones, compact mobile inverter artwork and caption-safe flow lanes.
+- On-demand Solar outlook: measured PV versus interval-mean forecasts, Today/Tomorrow, source selection, time inspection and hourly weather context.
+- Battery estimate feedback: frozen target/reserve outcomes and separate 30-minute SOC checks, with explicit exclusions and optional browser-local retention.
 - On-demand what-if load/capacity simulation that never changes installed settings.
 - Editor-only guided entity mapping with role/sign confirmation and explicit review/save/cancel.
 - Public Waveshare/Modbus commissioning guide and compile-verified read-only ESPHome profile, with live validation gates clearly separated.
@@ -46,7 +49,7 @@ npm ci
 npm run verify
 ```
 
-The latest tagged release is **0.5.0**. This source includes unreleased Phase 2 changes; the package version remains unchanged until a release is authorized. Build output (the versioned local demo contains the checked-out source, not necessarily a tagged release):
+The latest tagged release is **0.5.0**. This source includes unreleased Phase 2 and Phase 3 changes; the package version remains unchanged until a release is authorized. Build output (the versioned local demo contains the checked-out source, not necessarily a tagged release):
 
 ```text
 dist/powerflo-card.js
@@ -345,6 +348,48 @@ The 24-hour kWh equivalent is `watts × 24 / 1000`, conditional on that same dra
 ### Verification scope
 
 The test suite covers equivalent local windows, short months, DST refusal, zero/missing/partial references, Wh conversion, gaps/resets, request cancellation/cache, threshold/duration chatter, duplicate timestamps, stale/disconnected data, standby provenance, display toggles and both battery estimates. The offline export embeds the same card and assets under a network-blocking CSP. Browser/theme/mobile/offline checks validate the simulated fixture; live HA/Waveshare/inverter commissioning remains a separate acceptance gate. This frontend update changes no equipment settings and does not certify exact-firmware register semantics.
+
+## Solar outlook and weather
+
+Open **Solar outlook** in the Solar zone. Today/Tomorrow and the time slider belong only to this solar timeline; existing Today/Week/Month energy history and comparisons remain unchanged.
+
+1. Configure [Forecast.Solar](https://www.home-assistant.io/integrations/forecast_solar/) upstream using the **installed** array's capacity, tilt, azimuth and HA location. Model differently oriented planes appropriately. Three MPPT readings do not automatically create three forecast planes.
+2. Under **Settings → Dashboards → Energy → Solar panels**, enable solar-production forecasting and select the matching source.
+3. Open Solar outlook and select only this system's matching array(s). Empty selection deliberately produces no total. Copy the displayed source IDs into card settings to retain them; session selections never change HA Energy preferences.
+4. Optionally map an hourly-capable weather entity, such as Met.no `weather.forecast_home`. No API keys or provider credentials go into PowerFlo.
+
+```yaml
+# Merge into your existing card; retain its required entities.
+solar_outlook_enabled: true
+solar_forecast_sources: []  # replace with source IDs listed in Solar outlook
+weather_entity: weather.forecast_home
+estimate_accuracy_enabled: true
+accuracy_storage_key: main_system  # unique per system/card for browser retention
+```
+
+Forecast.Solar already incorporates weather upstream. Met.no provides context, not a second cloud/rain multiplier. Weather alone cannot manufacture a kWh forecast. PowerFlo uses native read commands `energy/solar_forecast` and `weather/subscribe_forecast` on the existing authenticated HA connection—not service actions, equipment commands or direct vendor requests.
+
+The chart separates **solid measured PV power** from **dashed forecast interval-mean power** on shared W/time scales. A Now marker separates past/future; HA-zone local days respect DST. The Energy adapter's start-keyed `wh_hours` values are Wh per interval, divided by actual elapsed duration for mean W. The next timestamp bounds each interval. Terminal intervals without a known end and gaps over one hour are withheld, not extrapolated. Missing/invalid measured reports and observation gaps over 15 minutes break the measured trace. No fake curve is drawn from a daily total.
+
+Remaining PV energy includes only covered future intervals; partial current intervals are prorated under a uniform mean-power assumption. Multi-array totals may have partial array coverage; the inspector reports the number of selected arrays covering that time. This is forecast **PV production**, not guaranteed battery charging. No probability band is invented. Provider issue time is unknown in this API; local receipt does not prove upstream freshness.
+
+Reads are lazy while detail is open and the card/page is visible. Energy normally refreshes hourly, measured PV history every five minutes, with bounded 15-second waits and late-response rejection. Weather subscriptions stop on close, hidden/background state, configuration change and detach. Forecast receipts over two hours old are withheld. Explicit Refresh retries missing data; integration cadence and native API compatibility remain upstream dependencies. Unsupported weather, unassociated arrays and read failures show guidance without disabling live readings/estimates.
+
+**Battery calculations are preserved.** The existing optional scalar `entities.solar_forecast_power` retains its existing projection role. The new overlay does not silently replace target/full estimates, credit gross PV as battery charging, double-count solar, add future grid charge or relax preparedness's no-future-solar baseline. Interval-assisted battery planning would require separately approved assumptions.
+
+## Estimate accuracy feedback and privacy
+
+Open **Battery details → Estimate accuracy**. Real first use says **Collecting qualified outcomes**, never a fabricated accuracy percentage. This is feedback, not automatic calibration.
+
+- Freeze one prediction per milestone in an uninterrupted session. Fresh target/full/reserve arrivals can qualify even if the BMS switches to Static on that report. Timing error is **observed crossing report − frozen prediction**, in minutes; positive means later. The latest report interval bounds crossing uncertainty—slow/whole-percent SOC reports cannot establish second-level precision.
+- Keep 95%, full and reserve-arrival feedback separate. Show count, mean absolute error and signed bias for the current system/model cohort. Other configured milestones are collected separately, not mixed with full-charge results.
+- A separate **30-minute SOC check** compares predicted/reported SOC in percentage points during uninterrupted discharge. It does not validate overnight runtime.
+- Configuration/capacity/target changes, source/grid regime changes, direction changes, stale data, gaps and unobserved periods censor pending predictions. Unreached targets are not zero-error successes. The latest exclusion is shown.
+- Collection runs only while this card is attached, visible and foregrounded. No background service, cloud analytics, multi-device aggregation or per-pack visibility is introduced.
+
+Default evidence is session-only. **Remember on this browser** explicitly opts into local storage isolated by signed-in HA user, origin and card/system identity. Only completed outcomes are retained—not credentials, raw telemetry, exact location or serials. Maximum 200 outcomes / 90 days; expired records are pruned and rewritten on the next active access (a closed browser cannot run deletion). Pending predictions never survive reload. **Clear local evidence** clears saved/active evidence without altering estimates. Turning Remember off removes saved data. Storage denial visibly falls back to session-only; no signed-in HA user means no persistence.
+
+The offline preview simulates forecasts/weather without network access and starts with no completed accuracy evidence. Its battery/grid selectors and theme controls remain outside the installed card.
 
 ## Waveshare / Modbus commissioning
 

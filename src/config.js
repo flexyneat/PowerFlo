@@ -36,6 +36,11 @@
  * @property {number|null} readiness_average_w Optional manual average AC watts; null selects observed demand.
  * @property {number} readiness_min_coverage Minimum observed coverage before accepting a historical bucket.
  * @property {Record<string, string>} statistics Optional long-term energy statistic IDs.
+ * @property {boolean} solar_outlook_enabled Show optional solar/weather detail.
+ * @property {string[]} solar_forecast_sources Explicit HA Energy forecast config-entry IDs.
+ * @property {string} weather_entity Optional hourly-capable weather entity.
+ * @property {boolean} estimate_accuracy_enabled Collect qualified outcomes while visible and attached.
+ * @property {string} accuracy_storage_key Distinguishes multiple cards/systems on this browser.
  * @property {string} inverter_image Validated local or data image URL.
  * @property {"12" | "24"} clock_format Clock presentation.
  * @property {number} flow_threshold_w Flow activation threshold.
@@ -76,6 +81,11 @@ export const DEFAULT_CONFIG = Object.freeze({
   readiness_average_w: null,
   readiness_min_coverage: 0.8,
   statistics: Object.freeze({ solar: "", grid: "", load: "", battery: "" }),
+  solar_outlook_enabled: true,
+  solar_forecast_sources: Object.freeze([]),
+  weather_entity: "",
+  estimate_accuracy_enabled: true,
+  accuracy_storage_key: "default",
   inverter_image: "",
   clock_format: "12",
   flow_threshold_w: 40,
@@ -190,6 +200,11 @@ export function normalizeConfig(input = {}) {
     readiness_average_w: input.readiness_average_w===null||input.readiness_average_w===undefined||input.readiness_average_w===""?null:finiteInRange(input.readiness_average_w,null,0,1000000),
     readiness_min_coverage: finiteInRange(input.readiness_min_coverage,0.8,0.5,1),
     statistics: Object.fromEntries(Object.keys(DEFAULT_CONFIG.statistics).map(key => [key, String(input.statistics?.[key] ?? "").trim().slice(0, 300)])),
+    solar_outlook_enabled: input.solar_outlook_enabled !== false,
+    solar_forecast_sources: [...new Set((Array.isArray(input.solar_forecast_sources)?input.solar_forecast_sources:typeof input.solar_forecast_sources==="string"?input.solar_forecast_sources.split(","):[]).filter(x=>typeof x==="string"&&/^[a-zA-Z0-9_-]{1,100}$/.test(x.trim())).map(x=>x.trim()))].slice(0,12),
+    weather_entity: /^weather\.[a-z0-9_]+$/.test(input.weather_entity??"")?input.weather_entity:"",
+    estimate_accuracy_enabled: input.estimate_accuracy_enabled !== false,
+    accuracy_storage_key: String(input.accuracy_storage_key??"default").slice(0,100),
     inverter_image: safeImageSource(input.inverter_image ?? DEFAULT_CONFIG.inverter_image),
     clock_format: input.clock_format === "24" ? "24" : "12",
     flow_threshold_w: threshold,

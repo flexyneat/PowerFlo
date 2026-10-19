@@ -19,6 +19,7 @@ import { loadOutageHistory } from "./outage-history.js";
 import { ReadinessPanel } from "./readiness-panel.js";
 import {ComparisonController} from "./comparison-controller.js";
 import {ExportSession,standbyObservation} from "./grid-insights.js";
+import {Phase3Panel} from "./phase3-panel.js";
 
 const FLOW_NAMES = Object.freeze(["solar", "grid", "battery", "load"]);
 const SUMMARY_NAMES = Object.freeze(["solar", "grid", "load", "battery"]);
@@ -105,6 +106,7 @@ export class PowerFloCard extends HTMLElement {
     this.comparison.reset();this.exportSession=new ExportSession();
     this.readinessPanel?.reset();
     this.config = normalizeConfig(rawConfig);
+    this.phase3?.configure();
     const errors = validateConfig(this.config);
     if (errors.length) throw new Error(errors.join("; "));
     this.runtimeEstimator.reset();
@@ -142,6 +144,7 @@ export class PowerFloCard extends HTMLElement {
     this.loadDemandIfNeeded();
     if(this.visible)this.comparison.refresh(hass,this.config,this.period);
     if(this.visible)this.readinessPanel?.load(hass,this.config);
+    this.phase3?.refresh();
   }
 
   /** Connects clocks and visibility observers, including after a dashboard reattachment. */
@@ -178,6 +181,7 @@ export class PowerFloCard extends HTMLElement {
   /** Releases timers, sessions, pending callbacks, and observers. */
   disconnectedCallback() {
     this.comparison.disconnect();this.exportSession=new ExportSession();
+    this.phase3?.disconnect();
     this.readinessPanel?.disconnect();
     window.clearInterval(this.clockTimer);
     window.clearInterval(this.runtimeTimer);
@@ -203,6 +207,7 @@ export class PowerFloCard extends HTMLElement {
     const wireVisible = getComputedStyle(this.shadowRoot.querySelector(".connectors")).display !== "none";
     for (const animator of this.animators.values()) animator.setVisible(this.visible && !document.hidden && wireVisible);
     if (!this.visible || document.hidden) this.cancelTextAnimations();
+    if(!this.visible||document.hidden)this.phase3?.disconnect();else this.phase3?.refresh();
   }
 
   /** Anchors connector endpoints to actual panel edges so flows never cross inverter text. */
@@ -214,7 +219,8 @@ export class PowerFloCard extends HTMLElement {
     const bounds = this.dataset.customImage === "true" ? { left: 0, top: 0, right: 1, bottom: 1 } : DEFAULT_ART_BOUNDS;
     const inverter = { left: box.left + box.width * bounds.left, right: box.left + box.width * bounds.right,
       top: box.top + box.height * bounds.top, bottom: box.top + box.height * bounds.bottom,
-      width: box.width * (bounds.right - bounds.left), height: box.height * (bounds.bottom - bounds.top) };
+      width: box.width * (bounds.right - bounds.left), height: box.height * (bounds.bottom - bounds.top),
+      caption: this.shadowRoot.querySelector('.inverter-copy').getBoundingClientRect() };
     for (const name of FLOW_NAMES) {
       const node = this.shadowRoot.querySelector(`.node.${name}`).getBoundingClientRect();
       this.shadowRoot.querySelector(`[data-flow-path="${name}"]`).setAttribute("d", connectorPath(canvas, inverter, node, name));
@@ -325,6 +331,7 @@ export class PowerFloCard extends HTMLElement {
     this.shadowRoot.querySelector(".topology").after(insights);
     this.readinessPanel=new ReadinessPanel();this.shadowRoot.querySelector(".topology").after(this.readinessPanel.element);
     this.renderPhase2();
+    this.phase3=new Phase3Panel(this);
     this.shadowRoot.querySelector(".history-message .retry").addEventListener("click", () => this.loadHistoryIfNeeded(true));
     const slider = this.shadowRoot.querySelector("#history-cursor");
     slider.setAttribute("aria-describedby", "inspection-time");
@@ -577,6 +584,7 @@ export class PowerFloCard extends HTMLElement {
     const targetResult = projection(this.config.battery_charge_target_soc === 100 ? 95 : this.config.battery_charge_target_soc);
     const fullResult = projection(100);
     this.estimateResults={runtime,charge,target:targetResult,full:fullResult};
+    this.phase3?.observe(model,input,projection,runtime);
     this.updateForecastIcon("full", chargeResult.status, this.config.battery_charge_target_soc);
     const chargeText = result => result.status === "ready" ? formatRuntime(result.hours) : result.status === "solar-limited" ? "Needs more solar" :
       result.status === "warming" ? "Collecting charge data" : result.status === "static" ? "Not charging" : states[result.status];

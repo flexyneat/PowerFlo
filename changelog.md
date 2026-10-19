@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — Precision refresh / Phase 3
+
+- Refresh transparent layout with quieter typography, open zones, compact mobile artwork and caption-safe lower flow routes; preserve all existing features and both visible battery estimates.
+- Add lazy read-only HA Energy solar source selection, interval normalization, measured/forecast overlay, Today/Tomorrow inspection, coverage/provenance and contextual hourly weather.
+- Preserve baseline charge/runtime/readiness logic; weather is not a second PV derating or an undisclosed battery-energy forecast.
+- Add frozen qualified charge/reserve outcomes and separate 30-minute SOC feedback, censoring and bounded opt-in user/card-local retention. No auto-calibration or equipment writes.
+- Update editor, edge-case regressions, simulated offline demo, README and commissioning notes. Keep 0.5.0 pending explicit release authorization.
+
 ## Unreleased — Phase 2
 
 - Extend the existing readiness disclosure with outage energy availability, demand, margin and explicit unassessed power/surge capability; preserve assumptions and both battery estimates.

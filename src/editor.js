@@ -74,6 +74,12 @@ export class PowerFloEditor extends HTMLElement {
     root.querySelector("style").textContent+=phase1Styles();
     const behavior = root.querySelector('[data-section="behavior"]');
     const entities = root.querySelector('[data-section="entities"]');
+    const forecasts=document.createElement("fieldset");forecasts.innerHTML='<legend>Forecast and accuracy</legend><p class="hint">Select Forecast.Solar in the Energy dashboard first. Source IDs are listed inside Solar outlook. Weather is contextual; no extra cloud correction is applied. Browser retention is off until explicitly enabled in Battery details.</p>';behavior.after(forecasts);
+    forecasts.append(this.createSelectField("solar_outlook_enabled","Solar outlook",[["true","Show"],["false","Hide"]]));
+    forecasts.append(this.createField("solar_forecast_sources","Energy forecast source IDs (comma-separated)","text"));
+    forecasts.append(this.createField("weather_entity","Hourly weather entity (optional)","text"));
+    forecasts.append(this.createSelectField("estimate_accuracy_enabled","Collect estimate feedback",[["true","While visible"],["false","Disabled"]]));
+    forecasts.append(this.createField("accuracy_storage_key","Local evidence identity (unique per system/card)","text"));
     this.guide=new SetupGuide(config=>{this.config=config;this.sync();this.guide.configure(config);this.dispatchEvent(new CustomEvent("config-changed",{detail:{config},bubbles:true,composed:true}));});
     root.querySelector(".editor").prepend(this.guide.element);this.guide.updateHass(this._hass);
     const appearanceFields = [
@@ -186,7 +192,7 @@ export class PowerFloEditor extends HTMLElement {
       if (control.dataset.path === "image_upload") continue;
       const [group, child] = control.dataset.path.split(".");
       const value = child ? this.config[group]?.[child] : this.config[group];
-      control.value = value ?? "";
+      control.value = Array.isArray(value)?value.join(", "):value ?? "";
     }
   }
 
@@ -201,7 +207,7 @@ export class PowerFloEditor extends HTMLElement {
     if (!path) return;
     try {
       let value = control.type === "number" ? Number(control.value) : control.value;
-      if(["use_learned_taper","energy_sources_verified","readiness_enabled","preparedness_enabled","grid_power_verified","standby_measurement_verified"].includes(path))value=control.value==="true";
+      if(["use_learned_taper","energy_sources_verified","readiness_enabled","preparedness_enabled","grid_power_verified","standby_measurement_verified","solar_outlook_enabled","estimate_accuracy_enabled"].includes(path))value=control.value==="true";
       if(["readiness_average_w","standby_assumed_w"].includes(path)&&control.value==="")value=null;
       if (path === "image_upload" && control instanceof HTMLInputElement && control.files?.[0]) {
         value = await readImageFile(control.files[0]);

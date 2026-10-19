@@ -40,5 +40,13 @@ export function connectorPath(canvas, inverter, node, name) {
   const radius = Math.min(FLOW_GEOMETRY.cornerRadius, Math.abs(portX - fromX) / 2, Math.abs(endY - fromY) / 2);
   const x = value => (value - canvas.left) / canvas.width * FLOW_GEOMETRY.width;
   const y = value => (value - canvas.top) / canvas.height * FLOW_GEOMETRY.height;
+  if(!upper&&inverter.caption){
+    // Lower flows approach the enclosure sides, not the caption underneath it.
+    const endX=left?inverter.left-gap:inverter.right+gap;
+    const sideY=inverter.bottom-inverter.height*FLOW_GEOMETRY.lowerSideInset;
+    const laneX=left?Math.min(endX,inverter.caption.left-gap):Math.max(endX,inverter.caption.right+gap);
+    const bend=Math.min(FLOW_GEOMETRY.cornerRadius,Math.abs(laneX-fromX)/2,Math.abs(fromY-sideY)/2,Math.abs(endX-laneX)/2);
+    return `M${x(fromX)} ${y(fromY)} H${x(laneX-horizontalDirection*bend)} Q${x(laneX)} ${y(fromY)} ${x(laneX)} ${y(fromY-bend)} V${y(sideY+bend)} Q${x(laneX)} ${y(sideY)} ${x(laneX+horizontalDirection*bend)} ${y(sideY)} H${x(endX)}`;
+  }
   return `M${x(fromX)} ${y(fromY)} H${x(portX - horizontalDirection * radius)} Q${x(portX)} ${y(fromY)} ${x(portX)} ${y(fromY + verticalDirection * radius)} V${y(endY)}`;
 }
