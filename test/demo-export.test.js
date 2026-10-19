@@ -14,6 +14,10 @@ describe("offline HTML export", () => {
     expect(html).toContain("connect-src 'none'");
     expect(html).toContain("PowerFlo preview · simulated data");
     expect(html).toContain("Battery details");
+    expect(html).toContain("Preparedness details");
+    expect(html).toContain("Compare previous period");
+    expect(html).toContain("Export and standby observations");
+    expect(html).toContain("Show outage preparedness");
     expect(html).toContain("Discharge reserve:");
     expect(html).not.toContain("sourceMappingURL");
     expect(html).not.toMatch(/<script[^>]+src=/i);

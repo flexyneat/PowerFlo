@@ -17,6 +17,8 @@ import { DEMAND_LIMITS, demandSummary, loadDemandHistory } from "./load-trend.js
 import { estimateBand,loadRuntimes,supplyMix,grossEnergyMix,solarUtilization,TaperSession,OutageSession,inspectEntities } from "./insights.js";
 import { loadOutageHistory } from "./outage-history.js";
 import { ReadinessPanel } from "./readiness-panel.js";
+import {ComparisonController} from "./comparison-controller.js";
+import {ExportSession,standbyObservation} from "./grid-insights.js";
 
 const FLOW_NAMES = Object.freeze(["solar", "grid", "battery", "load"]);
 const SUMMARY_NAMES = Object.freeze(["solar", "grid", "load", "battery"]);
@@ -89,6 +91,9 @@ export class PowerFloCard extends HTMLElement {
     this.chargeEstimator = new BatteryChargeEstimator();
     this.animators = new Map();
     this.visible = true;
+    this.comparison=new ComparisonController(()=>this.updateHistory());
+    this.exportSession=new ExportSession();
+    this.comparisonScales=new Map();
     this.reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
   }
 
@@ -97,6 +102,7 @@ export class PowerFloCard extends HTMLElement {
    * @param {Object} rawConfig User configuration.
    */
   setConfig(rawConfig) {
+    this.comparison.reset();this.exportSession=new ExportSession();
     this.readinessPanel?.reset();
     this.config = normalizeConfig(rawConfig);
     const errors = validateConfig(this.config);
@@ -134,6 +140,7 @@ export class PowerFloCard extends HTMLElement {
     this.queueUpdate();
     this.loadHistoryIfNeeded();
     this.loadDemandIfNeeded();
+    if(this.visible)this.comparison.refresh(hass,this.config,this.period);
     if(this.visible)this.readinessPanel?.load(hass,this.config);
   }
 
@@ -144,6 +151,7 @@ export class PowerFloCard extends HTMLElement {
     this.clockTimer = window.setInterval(() => this.updateClock(), 1000);
     this.runtimeTimer = window.setInterval(() => {
       if (this.hassValue) this.updateRuntime(deriveModel(this.hassValue.states, this.config, this.polarity));
+      if(this.hassValue){this.updateGridInsights(deriveModel(this.hassValue.states,this.config,this.polarity));if(this.visible)this.comparison.refresh(this.hassValue,this.config,this.period);}
       if (this.hassValue) { this.updateDemand(); this.loadDemandIfNeeded(); if(this.visible)this.readinessPanel?.load(this.hassValue,this.config); }
       if (Date.now() - this.lastDayCheck >= 60_000) {
         this.lastDayCheck = Date.now();
@@ -169,6 +177,7 @@ export class PowerFloCard extends HTMLElement {
 
   /** Releases timers, sessions, pending callbacks, and observers. */
   disconnectedCallback() {
+    this.comparison.disconnect();this.exportSession=new ExportSession();
     this.readinessPanel?.disconnect();
     window.clearInterval(this.clockTimer);
     window.clearInterval(this.runtimeTimer);
@@ -315,6 +324,7 @@ export class PowerFloCard extends HTMLElement {
     insights.innerHTML='<summary>System insights</summary><div class="insight-grid">'+Object.entries(headings).map(([key,title])=>`<section><h3>${title}</h3><p data-insight="${key}"></p></section>`).join("")+'</div>';
     this.shadowRoot.querySelector(".topology").after(insights);
     this.readinessPanel=new ReadinessPanel();this.shadowRoot.querySelector(".topology").after(this.readinessPanel.element);
+    this.renderPhase2();
     this.shadowRoot.querySelector(".history-message .retry").addEventListener("click", () => this.loadHistoryIfNeeded(true));
     const slider = this.shadowRoot.querySelector("#history-cursor");
     slider.setAttribute("aria-describedby", "inspection-time");
@@ -347,6 +357,61 @@ export class PowerFloCard extends HTMLElement {
     this.createAnimators();
     this.updateStaticText();
     this.updateHistory();
+  }
+
+  /** Adds opt-in chart controls and an on-demand Grid disclosure without another permanent tile. */
+  renderPhase2(){
+    const root=this.shadowRoot,button=document.createElement("button");button.type="button";button.className="grid-insights-link";button.dataset.gridInsightsToggle="";button.textContent="Grid insights ›";button.setAttribute("aria-expanded","false");button.setAttribute("aria-controls","powerflo-grid-insights");root.querySelector('.grid .node-content').append(button);
+    const details=document.createElement("details");details.className="grid-insights";details.id="powerflo-grid-insights";details.hidden=true;
+    details.innerHTML='<summary>Export and standby observations</summary><dl class="preparedness-facts"><dt>Sustained export</dt><dd data-export-status></dd><dt>Observation rule</dt><dd data-export-rule></dd><dt>Qualified session coverage</dt><dd data-export-coverage></dd><dt>Exported energy above threshold</dt><dd data-export-energy></dd><dt>Standby draw</dt><dd data-standby-status></dd><dt>24-hour equivalent</dt><dd data-standby-energy></dd></dl><p data-standby-basis></p><p>Live-session observations only; gaps, stale reports and disconnection interrupt coverage. No events observed is not proof of no export outside this coverage. Thresholds are observation settings, not grid-compliance settings.</p><p>AC/DC imbalance is not measured standby loss. The 24-hour value assumes the same draw all day; it is not recorded daily consumption. Standby is not subtracted again from runtime or readiness. No inverter settings are changed.</p>';
+    root.querySelector('.powerflo-insights').after(details);
+    button.addEventListener("click",()=>{details.hidden=false;details.open=!details.open;button.setAttribute("aria-expanded",String(details.open));if(details.open)details.querySelector("summary").focus();else details.hidden=true;});
+    details.addEventListener("toggle",()=>{button.setAttribute("aria-expanded",String(details.open));if(!details.open)details.hidden=true;});
+    details.addEventListener("keydown",event=>{if(event.key==="Escape"){event.preventDefault();details.open=false;details.hidden=true;button.setAttribute("aria-expanded","false");button.focus();}});
+    const control=document.createElement("label");control.className="comparison-control";control.innerHTML='<input type="checkbox" data-compare><span>Compare previous period</span>';
+    root.querySelector('.period-controls').before(control);
+    const caption=document.createElement("p");caption.className="comparison-caption";caption.setAttribute("role","status");root.querySelector('.history-toolbar').after(caption);
+    const retry=document.createElement("button");retry.type="button";retry.className="retry";retry.dataset.comparisonRetry="";retry.textContent="Retry comparison";retry.hidden=true;caption.after(retry);retry.addEventListener("click",()=>this.comparison.refresh(this.hassValue,this.config,this.period,true));
+    control.querySelector("input").addEventListener("change",event=>{this.comparison.enabled=event.target.checked;this.comparison.disconnect();this.updateHistory();this.comparison.refresh(this.hassValue,this.config,this.period);});
+    for(const name of SUMMARY_NAMES){
+      const delta=document.createElement("div");delta.className="summary-delta";delta.dataset.comparisonDelta=name;root.querySelector(`[data-coverage="${name}"]`).after(delta);
+      const path=document.createElementNS("http://www.w3.org/2000/svg","path");path.classList.add("reference");path.dataset.referencePath=name;path.setAttribute("d","");root.querySelector(`.summary[data-domain="${name}"] .spark`).prepend(path);
+    }
+  }
+
+  /** @param {Object} model Live projection. Records qualified power reports, never timer-generated samples. */
+  updateGridInsights(model){
+    if(!this.hassValue)return;
+    const states=this.hassValue.states,e=states[this.config.entities.grid_power];
+    const time=Date.parse(e?.last_reported??e?.last_updated??""),now=Date.now(),unit=e?.attributes?.unit_of_measurement;
+    // Transition-only connection entities legitimately retain old change timestamps; heartbeat and numeric reports supply freshness.
+    const power=numericState(states,this.config.entities.grid_power),fresh=model.dataState==="fresh"&&["W","kW"].includes(unit);
+    const s=this.exportSession.observe({time,now,watts:power===null?null:power*(unit==="kW"?1000:1),connected:model.connected,fresh},this.config);
+    this.setText('[data-export-status]',s.status==="unverified"?"Verify grid power role and polarity in card settings":s.status==="unavailable"?"Observation paused · fresh connected-grid reports needed":s.status==="sustained"?`${s.events} sustained event(s) · exporting now`:s.events?`${s.events} sustained event(s) observed`:`No qualifying session events${s.status==="pending"?" · duration pending":""}`);
+    this.setText('[data-export-rule]',`>${this.config.export_threshold_w} W export for ${this.config.export_duration_seconds} s`);
+    this.setText('[data-export-coverage]',`${Math.floor(s.coverageMs/60000)} min ${Math.floor(s.coverageMs/1000)%60} s · this session only`);
+    this.setText('[data-export-energy]',`${s.exportKwh.toFixed(3)} kWh · qualified intervals only`);
+    const standby=standbyObservation(states,this.config,now);
+    this.setText('[data-standby-status]',standby.status==="unassessed"?"Not assessed":`${standby.watts.toFixed(1)} W · ${standby.status==="measured"?"qualified measurement":"manual assumption"}`);
+    this.setText('[data-standby-energy]',standby.dailyKwh===null?"Not assessed":`${standby.dailyKwh.toFixed(2)} kWh / 24 h · conditional equivalent`);
+    this.setText('[data-standby-basis]',standby.status==="unassessed"?"Map a fresh inverter-only idle-power sensor and verify its scope/idle-only behavior, or enter an explicitly labelled manual assumption. No qualified evidence is currently available.":standby.status==="assumed"?"Manual assumption, not measured performance. Used for this insight only.":"Installer/user-verified inverter-only idle measurement. Its source must report unavailable outside qualified idle conditions; this card cannot independently prove physical scope.");
+  }
+
+  /** Reuses existing SVGs and their y scales; reference reads are opt-in and deltas require matched coverage. */
+  updateComparison(){
+    const c=this.comparison,root=this.shadowRoot;if(!root.querySelector('.comparison-caption'))return;
+    const range=c.range,zone=this.hassValue?.config?.time_zone;
+    const clock=range?.status==="ready"?new Intl.DateTimeFormat(undefined,{timeZone:zone,month:"short",day:"numeric",hour:"numeric",minute:"2-digit",hour12:this.config.clock_format!=="24"}).format(range.current.end):"";
+    this.setText('.comparison-caption',!c.enabled?"":c.status==="loading"?"Loading equivalent previous-period history…":c.status==="error"?"Comparison could not be loaded. Current charts remain available.":range?.status!=="ready"?range?.note??"Comparison unavailable":`Solid: current · dashed: ${range.label} · comparison through ${clock}${range.note?` · ${range.note}`:""}`);
+    root.querySelector('[data-comparison-retry]').hidden=!c.enabled||c.status!=="error";
+    this.comparisonScales.clear();
+    const plotRange=periodRange(this.period,new Date(),zone??Intl.DateTimeFormat().resolvedOptions().timeZone);
+    for(const name of SUMMARY_NAMES){
+      const r=c.enabled&&c.status==="ready"?c.results.get(name):null,points=r?.points??[],current=this.chartSeries.get(name)??[],scale=[...current,...points];this.comparisonScales.set(name,scale);
+      const paths=chartPaths(current,plotRange,scale);root.querySelector(`[data-summary-path="${name}"]`).setAttribute("d",paths.line);root.querySelector(`[data-summary-area="${name}"]`).setAttribute("d",paths.area);
+      root.querySelector(`[data-reference-path="${name}"]`).setAttribute("d",chartPaths(points,plotRange,scale).line);
+      this.setText(`[data-comparison-delta="${name}"]`,!c.enabled?"":r?.status==="ready"?`${r.delta>=0?"+":""}${r.delta.toFixed(1)} kWh vs ${range.label}`:c.status==="loading"?"Comparison loading":r?.status==="partial"?"Comparison partial · delta withheld":"Comparison unavailable");
+    }
   }
 
   /**
@@ -445,6 +510,7 @@ export class PowerFloCard extends HTMLElement {
     this.observeDemand(model);
     this.updateDemand();
     this.updateGrid(model);
+    this.updateGridInsights(model);
     this.updateRuntime(model);
     this.updateInsights(model);
     this.appendLiveHistory();
@@ -710,6 +776,7 @@ export class PowerFloCard extends HTMLElement {
     this.cursorPinned = false;
     for (const button of this.shadowRoot.querySelectorAll("[data-period]")) button.setAttribute("aria-pressed", String(button.dataset.period === period));
     this.loadHistoryIfNeeded();
+    this.comparison.refresh(this.hassValue,this.config,this.period);
   }
 
   /**
@@ -769,13 +836,15 @@ export class PowerFloCard extends HTMLElement {
       const id = this.config.entities[`${name}_today`];
       const statisticId = this.config.statistics[name] || id;
       const statistic = this.statisticsHistory.get(statisticId);
-      const result = this.period === "today" ? periodEnergy(this.history.get(id) ?? [], range, timeZone) :
-        statistic ?? { points: [], total: null, partial: true, status: "missing", end: null };
       const entity = this.hassValue?.states[id];
+      const energyFactor={Wh:.001,kWh:1,MWh:1000}[entity?.attributes?.unit_of_measurement]??1;
+      // Recorder and live counters must share the comparison's kWh scale, never raw Wh beside converted kWh.
+      const result = this.period === "today" ? periodEnergy((this.history.get(id) ?? []).map(p=>({...p,value:p.value*energyFactor})), range, timeZone) :
+        statistic ?? { points: [], total: null, partial: true, status: "missing", end: null };
       const sampleTime = Date.parse(entity?.last_reported ?? entity?.last_updated ?? "");
       const todayStart = periodRange("today", range.end, timeZone).start.getTime();
       const live = sampleTime >= todayStart && sampleTime <= range.end.getTime() ? this.latestModel?.values[`${name}Today`] ?? null : null;
-      const total = this.period === "today" ? live ?? result.total : result.total;
+      const total = this.period === "today" ? live===null?result.total:live*energyFactor : result.total;
       this.energyTotals[name]=total;
       this.setReading(`[data-summary-value="${name}"]`, total, "kWh", 1, false);
       this.setText(`[data-coverage="${name}"]`, !(this.period === "today" ? id : statisticId) ? "Map an energy entity" : loading ? "Loading history" : failed ? "History unavailable" :
@@ -789,6 +858,7 @@ export class PowerFloCard extends HTMLElement {
       summary.querySelector("[data-period-start]").textContent = startLabel;
       summary.setAttribute("aria-label", `${label(name)}, ${label(this.period)}: ${formatValue(total, "kWh")}. ${result.partial ? "Partial recorded history." : "Recorded history."}`);
     }
+    this.updateComparison();
     this.updateInspection();
     if(this.latestModel)this.updateInsights(this.latestModel);
   }
@@ -821,12 +891,13 @@ export class PowerFloCard extends HTMLElement {
       if (!point) { this.setText(`[data-inspection="${name}"]`, "No sample"); continue; }
       const x = (point.time - range.start.getTime()) / Math.max(1, range.end.getTime() - range.start.getTime()) * 100;
       cursor.setAttribute("x1", String(x)); cursor.setAttribute("x2", String(x));
-      const coordinates = chartCoordinates(point, this.chartSeries.get(name), range);
+      const coordinates = chartCoordinates(point, this.comparisonScales.get(name)??this.chartSeries.get(name), range);
       marker.setAttribute("cx", String(coordinates.x)); marker.setAttribute("cy", String(coordinates.y));
       const rect = marker.parentElement.getBoundingClientRect();
       marker.setAttribute("rx", String(rect.width ? CHART_GEOMETRY.pointRadius * CHART_GEOMETRY.width / rect.width : 1));
       marker.setAttribute("ry", String(rect.height ? CHART_GEOMETRY.pointRadius * CHART_GEOMETRY.height / rect.height : 1));
-      this.setText(`[data-inspection="${name}"]`, `${formatValue(point.value,"kWh",2)}\n${formatter.format(new Date(point.time))}`);
+      const reference=this.comparison.enabled?nearestObservation(this.comparison.results.get(name)?.points??[],time):null;
+      this.setText(`[data-inspection="${name}"]`, `${formatValue(point.value,"kWh",2)}\n${formatter.format(new Date(point.time))}${reference?`\nPrevious: ${formatValue(reference.value,"kWh",2)} · ${formatter.format(new Date(reference.time-this.comparison.range.offset))} (nearest recorded)` : this.comparison.enabled?"\nPrevious: no sample":""}`);
     }
   }
 

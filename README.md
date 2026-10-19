@@ -18,6 +18,7 @@ A transparent, read-only Home Assistant card for solar, battery, grid and load p
 - Single-file offline demo with simulated controls and system customization.
 - System insights: estimate bands, conditional load runtimes, opt-in observed taper, BMS limits, solar/MPPT detail, power/energy proportions, diagnostics, outage history and density presets.
 - Overnight readiness with local morning deadline, planning reserve, conditional morning SOC and explicit demand-data provenance.
+- Independently switchable outage preparedness, opt-in equivalent-period chart overlays, and on-demand export/standby observations (Phase 2 development).
 - On-demand what-if load/capacity simulation that never changes installed settings.
 - Editor-only guided entity mapping with role/sign confirmation and explicit review/save/cancel.
 - Public Waveshare/Modbus commissioning guide and compile-verified read-only ESPHome profile, with live validation gates clearly separated.
@@ -45,7 +46,7 @@ npm ci
 npm run verify
 ```
 
-The current source version is **0.5.0**. Build output:
+The latest tagged release is **0.5.0**. This source includes unreleased Phase 2 changes; the package version remains unchanged until a release is authorized. Build output (the versioned local demo contains the checked-out source, not necessarily a tagged release):
 
 ```text
 dist/powerflo-card.js
@@ -263,7 +264,8 @@ Learning needs three distinct charging samples below the configured taper start 
 These additions preserve both Battery estimates, existing features, transparent surfaces and JavaScript-only read-only behavior. No new Modbus registers are required. Configure your **actual installed total kWh**; the demo illustrates one 16 kWh battery. A hypothetical expansion never changes installed capacity. Per-battery-pack visibility is not included.
 
 ```yaml
-readiness_enabled: true
+readiness_enabled: true          # legacy master switch: readiness AND simulator
+preparedness_enabled: true       # false hides preparedness only; simulator stays available
 readiness_deadline: "06:00"       # Home Assistant local time, not the browser's zone
 readiness_average_w: null         # blank/null uses observations; 0 means a real zero-load assumption
 readiness_min_coverage: 0.8       # accepted historical coverage, range 0.5–1
@@ -274,7 +276,9 @@ runtime_load_efficiency: 0.9     # effective usable-energy factor including loss
 
 ### Overnight readiness
 
-The compact row below the flow diagram estimates supply until the morning deadline **if grid supply fails now** (or remains off), with **no future solar or grid charging credited**. It is energy planning, not a backup guarantee, shutdown setting or compressor-surge/BMS power assessment. Open Readiness assumptions for provenance and limitations. Fresh SOC in % and fresh telemetry are required; missing/invalid values remain unavailable, not zero.
+The compact row below the flow diagram estimates supply until the morning deadline **if grid supply fails now** (or remains off), with **no future solar or grid charging credited**. It is energy planning, not a backup guarantee, shutdown setting or compressor-surge/BMS power assessment. Open **Preparedness details** for usable energy above reserve, required energy, conditional margin/shortfall, telemetry and assumptions. Power/surge capability remains **Not assessed**: the energy calculation cannot certify it. Fresh SOC in % and fresh telemetry are required; missing/invalid values remain unavailable, not zero.
+
+In the visual editor, **Show outage preparedness → Hide preparedness; keep simulator** sets `preparedness_enabled: false`. This hides the readiness row and preparedness details; the simulator remains a standalone disclosure, and both Battery estimates remain visible. `readiness_enabled: false` retains its legacy meaning and hides both readiness and the simulator. These are display preferences, not battery or inverter commands.
 
 Demand precedence: explicit manual watts; otherwise a qualified three-day matching-local-time profile; otherwise a sufficiently covered recent 15-minute average; otherwise fresh instantaneous demand. Fallbacks are labelled and are not presented as overnight historical profiles. Each required half-hour historical bucket needs configured coverage and observations on at least two local dates. Unknown values and gaps beyond 60 seconds remain uncovered. Slow-reporting sensors may therefore use fallback. Recorder must include the mapped protected-load sensor; forced numeric updates can improve coverage but increase storage.
 
@@ -295,6 +299,52 @@ Inputs are ephemeral, not persisted or passed to equipment or saved configuratio
 In the visual editor, expand **Guided entity setup**: select candidates, check representations/physical roles and power signs, then explicitly save reviewed mappings. This emits HA's normal `config-changed` display event; the dashboard's own Save action still applies. Cancel discards the isolated draft. Existing direct fields/YAML, optional mappings, identity, image and ratings remain supported. No equipment settings are changed.
 
 Candidates come from existing HA entities, never physical device discovery, and are not auto-applied. Required power is W, SOC is %, and connection/freshness use explicit boolean binary sensors. Convert upstream if needed; no silent scaling. Duplicate roles, incompatible units, invalid values and unavailable entities are flagged. Save requires independent role and sign confirmation; value/unit compatibility is not commissioning proof. Zero watts never proves grid disconnection. Do not interrupt live wiring to verify roles. Optional data can stay unmapped. Neither the guide nor demo scenario dropdowns appear on the everyday installed card.
+
+## Phase 2: comparisons and grid insights (unreleased)
+
+### Equivalent-period comparisons
+
+Select **Compare previous period** beside Today/Week/Month. It defaults off and makes no reference-history requests until enabled. Solid is current; dashed is the reference, on the same energy and time scales. Summaries retain their existing current-period totals. A compact kWh delta refers only to the comparable recorded window, whose cutoff is shown above the charts. The time slider, pointer, touch inspection, missing-data treatment and all existing views remain available; inspection adds the nearest reference observation, not an interpolated reading. Zero references never produce an infinite percentage.
+
+- **Today:** yesterday through the same Home Assistant local clock time. Recorder comparisons accept Wh/kWh/MWh counters; missing units, unknown states, unexpected resets, large gaps, sparse boundaries or unmatched endpoints withhold the delta. No midnight measurement is invented.
+- **Week:** the existing rolling seven-local-calendar-day window versus its preceding equivalent window. This is not a calendar-week report.
+- **Month:** month-to-date versus the corresponding prior-month window. If the previous month lacks the current date, comparison clips to their common calendar dates and discloses that cutoff; the main current total is unchanged.
+- **Week/Month** use validated energy statistics with sum support, in completed hourly changes. No unfinished-hour extrapolation. Gaps or unequal covered endpoints withhold deltas.
+- If DST makes the windows unequal in real duration, comparison is explicitly unavailable; no hour is duplicated, stretched or silently estimated. Current charts continue normally. This conservative limitation is deliberate.
+
+Comparison reads use the existing authenticated HA Recorder/WS APIs and only the four mapped energy IDs, two equivalent windows per refresh. Results are bounded to three cached contexts, refreshed at most once per ten-minute bucket during normal visible use. Explicit retries are limited to once/minute; configuration, period, units and timezone changes invalidate the relevant context. Late responses are discarded after configuration changes, disabling comparison or detachment. Today reference parsing is capped at 10,000 rows per series and conservatively marks truncated coverage partial. Recorder retention and statistics access still determine availability.
+
+### Export observations
+
+Open **Grid insights** inside the Grid card. It expands below the topology; no extra diagnostic tiles are permanently added. Escape closes the disclosure and returns focus to its Grid button. The installed card contains no demo battery/grid selectors.
+
+```yaml
+grid_power_verified: false       # true ONLY after checking physical role and configured sign
+grid_positive: import            # existing sign setting; use export only for opposite-polarity sensors
+export_threshold_w: 50           # example observation threshold, not a zero-export setting
+export_duration_seconds: 300     # example continuous duration, range 30–86400 seconds
+standby_measurement_verified: false
+standby_assumed_w: null          # optional informational assumption; blank/null means unknown
+entities:
+  # Merge into your existing mappings; do not replace required entity mappings.
+  inverter_standby_power: ""     # optional qualified inverter-only idle sensor, W or kW
+```
+
+Export detection stays unverified until physical grid-point role and sign are confirmed. Fresh heartbeat/numeric power reports and an explicit connected-grid state are required. A transition-only connection binary is not falsely aged by its last-change time. Duplicate report timestamps do not accrue time; import/below-threshold chatter, gaps beyond `runtime_max_sample_age_seconds`, unknown/stale data and disconnection interrupt qualification. An event is counted once when continuous observed export exceeds the threshold for the configured duration. The aggregate exported energy integrates only observed intervals whose two endpoints both exceed the threshold; this is a bounded session observation, not a utility-meter total or an exact crossing-time measurement.
+
+Coverage and event counts are **live-session only**, cleared by real configuration changes or detachment/reload. “No qualifying session events” does not prove zero export outside covered intervals. No Recorder export-event backfill is claimed. These insights neither inspect nor change Solar Sell or zero-export settings; do not infer inverter configuration or regulatory compliance from them.
+
+### Standby-loss insight
+
+Default is **Not assessed**. Never substitute `PV + grid + battery − load` for measured standby loss: AC/DC scope, conversion losses, measurement timing and omitted circuits invalidate that shortcut.
+
+For a measured value, map a dedicated inverter-only idle-power sensor and set `standby_measurement_verified: true` only after validating its scope. The upstream sensor must report unavailable outside qualified idle conditions; this card cannot infer physical isolation or certify an arbitrary sensor's scope. Units must be W/kW, nonnegative, and its timestamp must be fresh. Alternatively enter `standby_assumed_w` as a clearly labelled **manual assumption**, never measured performance. A qualified measurement takes precedence; otherwise an explicit manual assumption can be shown.
+
+The 24-hour kWh equivalent is `watts × 24 / 1000`, conditional on that same draw all day—not recorded daily consumption. It is informational only and is **not** subtracted from runtime/readiness, whose effective usable-energy factor already includes overhead once. No new unvalidated Modbus register is added for standby, grid state or BMS capability. Per-pack visibility remains excluded.
+
+### Verification scope
+
+The test suite covers equivalent local windows, short months, DST refusal, zero/missing/partial references, Wh conversion, gaps/resets, request cancellation/cache, threshold/duration chatter, duplicate timestamps, stale/disconnected data, standby provenance, display toggles and both battery estimates. The offline export embeds the same card and assets under a network-blocking CSP. Browser/theme/mobile/offline checks validate the simulated fixture; live HA/Waveshare/inverter commissioning remains a separate acceptance gate. This frontend update changes no equipment settings and does not certify exact-firmware register semantics.
 
 ## Waveshare / Modbus commissioning
 

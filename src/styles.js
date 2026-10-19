@@ -2,9 +2,10 @@
 import { BREAKPOINTS, tokenDeclarations } from "./tokens.js";
 import { displayStyles } from "./display-styles.js";
 import { phase1Styles } from "./phase1-styles.js";
+import { phase2Styles } from "./phase2-styles.js";
 
 /** @returns {string} Unified display stylesheet. */
-export function cardStyles() { return displayStyles()+phase1Styles(); }
+export function cardStyles() { return displayStyles()+phase1Styles()+phase2Styles(); }
 
 /**
  * Returns theme-aware visual editor styles.

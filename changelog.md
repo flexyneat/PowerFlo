@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — Phase 2
+
+- Extend the existing readiness disclosure with outage energy availability, demand, margin and explicit unassessed power/surge capability; preserve assumptions and both battery estimates.
+- Add an independent `preparedness_enabled` display preference that leaves the simulator available; retain the legacy readiness master switch.
+- Add opt-in equivalent-period chart overlays/deltas using filtered Recorder and long-term statistics reads, bounded caching, cancellation, matched coverage and conservative calendar/DST handling.
+- Add on-demand Grid insights with qualified live-session sustained-export observations and explicit standby measurement/manual-assumption provenance; never infer measured standby from AC/DC residuals.
+- Preserve transparent surfaces, all existing features, JavaScript-only implementation and read-only equipment behavior. Update simulated offline export, configuration documentation and regression coverage.
+- Keep package/release version at 0.5.0 pending explicit release authorization; development demos identify themselves as Phase 2 previews.
+
 ## 0.5.0
 
 - Add compact conditional overnight readiness with HA-local/DST deadline, reserve shortfall and explicit manual/history/recent/current demand basis.

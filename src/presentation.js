@@ -39,9 +39,10 @@ function chartScale(points) {
  * Builds linear paths through recorded points, never inventing intermediate measurements.
  * @param {Object[]} points Ordered observations; breakBefore marks missing coverage.
  * @param {{start:Date,end:Date}} range Fixed local-period boundaries.
+ * @param {Object[]} [scalePoints] Shared observations for current and optional reference y-axis.
  * @returns {{line:string,area:string}} Disjoint line/fill paths respecting missing intervals.
  */
-export function chartPaths(points, range) {
+export function chartPaths(points, range, scalePoints = points) {
   if (points.length < 2) return { line: "", area: "" };
   const segments = []; let segment = [];
   for (const point of points) {
@@ -50,7 +51,7 @@ export function chartPaths(points, range) {
   }
   if (segment.length) segments.push(segment);
   const lines = []; const areas = [];
-  const scale = chartScale(points);
+  const scale = chartScale(scalePoints);
   for (const group of segments) {
     if (group.length < 2) continue;
     const projected = group.map(point => chartCoordinates(point, points, range, scale));

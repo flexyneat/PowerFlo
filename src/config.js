@@ -26,6 +26,12 @@
  * @property {number} runtime_load_efficiency Assumed DC-to-AC efficiency for load scenarios.
  * @property {boolean} energy_sources_verified User confirmed production/import/discharge counter meanings.
  * @property {boolean} readiness_enabled Show conditional overnight readiness and scenario tools.
+ * @property {boolean} preparedness_enabled Show preparedness row/details independently of the simulator.
+ * @property {boolean} grid_power_verified Physical grid power role and configured sign have been confirmed.
+ * @property {number} export_threshold_w Strict export threshold for session observation, not inverter control.
+ * @property {number} export_duration_seconds Continuous export duration required for an observed event.
+ * @property {boolean} standby_measurement_verified User/installer verified inverter-only idle sensor scope and behavior.
+ * @property {number|null} standby_assumed_w Manual informational assumption; never deducted again from runtime.
  * @property {string} readiness_deadline Morning HH:mm in Home Assistant's time zone.
  * @property {number|null} readiness_average_w Optional manual average AC watts; null selects observed demand.
  * @property {number} readiness_min_coverage Minimum observed coverage before accepting a historical bucket.
@@ -60,6 +66,12 @@ export const DEFAULT_CONFIG = Object.freeze({
   runtime_load_efficiency: 0.9,
   energy_sources_verified: false,
   readiness_enabled: true,
+  preparedness_enabled: true,
+  grid_power_verified: false,
+  export_threshold_w: 50,
+  export_duration_seconds: 300,
+  standby_measurement_verified: false,
+  standby_assumed_w: null,
   readiness_deadline: "06:00",
   readiness_average_w: null,
   readiness_min_coverage: 0.8,
@@ -94,6 +106,7 @@ export const DEFAULT_CONFIG = Object.freeze({
     battery_current: "",
     bms_charge_current_limit: "",
     bms_discharge_current_limit: "",
+    inverter_standby_power: "",
     pv1_voltage: "",pv1_current: "",
     pv2_voltage: "",pv2_current: "",
     pv3_voltage: "",pv3_current: "",
@@ -167,6 +180,12 @@ export function normalizeConfig(input = {}) {
     energy_sources_verified: input.energy_sources_verified===true,
     runtime_load_efficiency: finiteInRange(input.runtime_load_efficiency,DEFAULT_CONFIG.runtime_load_efficiency,0.5,1),
     readiness_enabled: input.readiness_enabled !== false,
+    preparedness_enabled: input.preparedness_enabled !== false,
+    grid_power_verified: input.grid_power_verified === true,
+    export_threshold_w: finiteInRange(input.export_threshold_w,50,1,1000000),
+    export_duration_seconds: finiteInRange(input.export_duration_seconds,300,30,86400),
+    standby_measurement_verified: input.standby_measurement_verified === true,
+    standby_assumed_w: input.standby_assumed_w===null||input.standby_assumed_w===undefined||input.standby_assumed_w===""?null:finiteInRange(input.standby_assumed_w,null,0,100000),
     readiness_deadline: /^([01]\d|2[0-3]):[0-5]\d$/.test(input.readiness_deadline??"")?input.readiness_deadline:DEFAULT_CONFIG.readiness_deadline,
     readiness_average_w: input.readiness_average_w===null||input.readiness_average_w===undefined||input.readiness_average_w===""?null:finiteInRange(input.readiness_average_w,null,0,1000000),
     readiness_min_coverage: finiteInRange(input.readiness_min_coverage,0.8,0.5,1),

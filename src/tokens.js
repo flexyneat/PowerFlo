@@ -22,6 +22,8 @@ export const TOKENS = Object.freeze({
   runtimeWidth: "13rem",
   inspectionWidth: "20rem",
   cursorDash: "2 2",
+  referenceOpacity: "0.72",
+  insightsWidth: "44rem",
   solarBase: "oklch(0.82 0.17 82)",
   gridBase: "oklch(0.73 0.16 235)",
   batteryBase: "oklch(0.72 0.17 305)",

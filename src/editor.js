@@ -93,6 +93,12 @@ export class PowerFloEditor extends HTMLElement {
     behavior.append(this.createSelectField("energy_sources_verified","Counters are PV production / grid import / battery discharge",[["false","Not verified"],["true","Verified roles"]]));
     behavior.append(this.createSelectField("clock_format", "Clock format", [["12", "12-hour"], ["24", "24-hour"]]));
     behavior.append(this.createSelectField("readiness_enabled","Overnight readiness",[["true","Show readiness and simulator"],["false","Hide readiness and simulator"]]));
+    behavior.append(this.createSelectField("preparedness_enabled","Show outage preparedness",[["true","Show preparedness"],["false","Hide preparedness; keep simulator"]]));
+    behavior.append(this.createSelectField("grid_power_verified","Grid power role and polarity confirmed",[["false","Not verified"],["true","Verified at grid connection point"]]));
+    behavior.append(this.createField("export_threshold_w","Sustained export observation threshold (W)","number"));
+    behavior.append(this.createField("export_duration_seconds","Sustained export observation duration (seconds)","number"));
+    behavior.append(this.createSelectField("standby_measurement_verified","Standby sensor is qualified inverter-only idle measurement",[["false","Not verified"],["true","Verified scope and idle-only behavior"]]));
+    behavior.append(this.createField("standby_assumed_w","Manual standby assumption (W; blank means unknown)","number"));
     behavior.append(this.createField("readiness_deadline","Morning deadline (HA local time)","time"));
     behavior.append(this.createField("readiness_average_w","Manual average load (W; blank uses observations)","number"));
     behavior.append(this.createField("readiness_min_coverage","Required demand history coverage (0.5–1)","number"));
@@ -195,8 +201,8 @@ export class PowerFloEditor extends HTMLElement {
     if (!path) return;
     try {
       let value = control.type === "number" ? Number(control.value) : control.value;
-      if(["use_learned_taper","energy_sources_verified","readiness_enabled"].includes(path))value=control.value==="true";
-      if(path==="readiness_average_w"&&control.value==="")value=null;
+      if(["use_learned_taper","energy_sources_verified","readiness_enabled","preparedness_enabled","grid_power_verified","standby_measurement_verified"].includes(path))value=control.value==="true";
+      if(["readiness_average_w","standby_assumed_w"].includes(path)&&control.value==="")value=null;
       if (path === "image_upload" && control instanceof HTMLInputElement && control.files?.[0]) {
         value = await readImageFile(control.files[0]);
         this.config = normalizeConfig({ ...this.config, inverter_image: value });
