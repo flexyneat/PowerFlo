@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — gateway recovery and local diagnostics
+
+- Add password-protected fallback Wi-Fi after 90 seconds with a captive recovery portal; document its administrative firmware-upload boundary.
+- Add local embedded v3 web diagnostics with Digest authentication, private secret placeholders, hidden internal entities and disabled web log streaming.
+- Disable regular LAN web OTA; retain encrypted native API/OTA, safe mode, existing reboot behavior, UART/RS485 settings and read-only register map.
+- Update setup/recovery/security documentation and commissioning regression tests. No device flashed, version bump or tagged release in this change.
+
 ## Unreleased — Precision refresh / Phase 3
 
 - Refresh transparent layout with quieter typography, open zones, compact mobile artwork and caption-safe lower flow routes; preserve all existing features and both visible battery estimates.

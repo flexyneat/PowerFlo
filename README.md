@@ -391,6 +391,23 @@ Default evidence is session-only. **Remember on this browser** explicitly opts i
 
 The offline preview simulates forecasts/weather without network access and starts with no completed accuracy evidence. Its battery/grid selectors and theme controls remain outside the installed card.
 
+## Gateway recovery and diagnostics
+
+The recovery-enabled profile passed YAML validation and a full ESP32-S3 build with ESPHome 2026.9.1 / ESP-IDF 5.5.5 using isolated dummy secrets (907,163-byte application; 105,747 bytes reported static RAM). This verifies compilation, not live recovery behavior. No device was flashed.
+
+The updated ESPHome template adds a password-protected fallback AP and an authenticated local web page without adding inverter controls. This is a source update; previously published YAML/firmware is not changed automatically.
+
+- Add `deye_gateway_ap_password`, `deye_gateway_web_username` and `deye_gateway_web_password` from the updated secrets template to your **private** `secrets.yaml`. Use different, unique random passwords of at least 20 characters; the AP supports 8–63 characters. No real credentials are supplied in this repository.
+- If normal Wi-Fi cannot connect, `deye-12k-modbus Recovery` starts after 90 seconds. Join with the AP password and open `http://192.168.4.1/`. Its name follows `device_name`. Correct Wi-Fi there and also update private YAML/secrets before future flashing.
+- On the LAN, open `http://<gateway-IP>/` and log in with the web credentials. The v3 UI embeds its assets: no runtime internet access is required. Internal entities and web log streaming are hidden/disabled.
+- HTTP uses Digest authentication, **not HTTPS**. It does not encrypt telemetry; use a trusted, restricted LAN/VLAN. Native API encryption does not secure the separate web interface. Never expose gateway HTTP/API/OTA to the internet.
+- Regular web firmware upload is disabled with `web_server.ota: false` while the recovery portal is inactive. **The captive portal still provides recovery firmware upload while active.** During recovery, treat every reachable gateway HTTP interface as administrative: the portal is not explicitly restricted to the AP interface, and its Wi-Fi configuration route bypasses web authentication. Do not rely on AP-only isolation; restrict network access and keep both recovery and web credentials private. Retain encrypted native OTA and USB recovery.
+- Existing API/Wi-Fi reboot timeouts and safe mode are unchanged. A browser does not count as an API client, so an extended HA/API outage may still trigger the API's default gateway reboot. No inverter command is involved.
+
+Validate and compile your private configuration before flashing. The supplied dummy validation binary is not for installation or distribution. Physical hotspot, authentication, offline page and recovery testing remains necessary; see the [commissioning guide](waveshare-commissioning-guide.html).
+
+Other low-risk future options, **not enabled by this change**: Wi-Fi connection status/reconnect counts, reset reason/free-heap diagnostics, per-channel last-good-read age, Modbus timeout/error counters, and HA alerts for stale telemetry. Prefer router DHCP reservations to hard-coded addresses. Gateway restart/safe-mode buttons would be maintenance controls requiring explicit confirmation; no remote inverter controls, raw Modbus writes or automatic inverter-setting changes are proposed.
+
 ## Waveshare / Modbus commissioning
 
 [Open the public HTML commissioning guide](waveshare-commissioning-guide.html), with [read-only ESPHome YAML](waveshare-readonly.yaml) and [secrets template](secrets.example.yaml). Download and open the HTML locally; it has no external assets and includes wiring/data-path diagrams, register candidates, security settings, acceptance gates and rollback.
