@@ -20,6 +20,7 @@ import { ReadinessPanel } from "./readiness-panel.js";
 import {ComparisonController} from "./comparison-controller.js";
 import {ExportSession,standbyObservation} from "./grid-insights.js";
 import {Phase3Panel} from "./phase3-panel.js";
+import {gatewayTelemetry,telemetryText} from "./gateway-telemetry.js";
 
 const FLOW_NAMES = Object.freeze(["solar", "grid", "battery", "load"]);
 const SUMMARY_NAMES = Object.freeze(["solar", "grid", "load", "battery"]);
@@ -328,6 +329,12 @@ export class PowerFloCard extends HTMLElement {
     const insights=document.createElement("details");insights.className="powerflo-insights";
     const headings={ranges:"Estimate ranges",scenarios:"Load runtime scenarios",taper:"Observed charging taper",limits:"Battery current limits",solar:"Solar utilization",mppt:"MPPT detail",sources:"Indicative supply mix",quality:"Data quality",outages:"Observed outage timeline",coverage:"History coverage"};
     insights.innerHTML='<summary>System insights</summary><div class="insight-grid">'+Object.entries(headings).map(([key,title])=>`<section><h3>${title}</h3><p data-insight="${key}"></p></section>`).join("")+'</div>';
+    // Optional snapshots live inside the existing disclosure, not on the primary topology.
+    for(const [key,title] of Object.entries({electrical:"Additional electrical readings",daily:"Daily energy snapshots",lifetime:"Lifetime energy snapshots"})){
+      const section=document.createElement("section"),heading=document.createElement("h3"),body=document.createElement("p");
+      heading.textContent=title;body.dataset.gatewayTelemetry=key;section.append(heading,body);insights.querySelector(".insight-grid").append(section);
+    }
+    const snapshotNote=document.createElement("p");snapshotNote.textContent="Energy snapshots are values at the shown report time, not guaranteed current-day or selected-period totals. Verify counter roles and Recorder statistics separately. CT candidates and inverter output do not drive flow or runtime estimates.";insights.append(snapshotNote);
     this.shadowRoot.querySelector(".topology").after(insights);
     this.readinessPanel=new ReadinessPanel();this.shadowRoot.querySelector(".topology").after(this.readinessPanel.element);
     this.renderPhase2();
@@ -616,6 +623,7 @@ export class PowerFloCard extends HTMLElement {
   updateInsights(model){
     const set=(key,value)=>this.setText(`[data-insight="${key}"]`,value);
     const fresh=model.dataState==="fresh",states=this.hassValue.states,now=Date.now();
+    for(const [group,rows] of Object.entries(gatewayTelemetry(states,this.config,now)))this.setText(`[data-gateway-telemetry="${group}"]`,telemetryText(rows,this.hassValue.config?.time_zone,this.config.clock_format!=="24"));
     const isRecent=name=>{const e=states[this.config.entities[name]],time=Date.parse(e?.last_reported??e?.last_updated??"");return Number.isFinite(time)&&time<=now&&now-time<=this.config.runtime_max_sample_age_seconds*1000;};
     const live=name=>{const e=states[this.config.entities[name]],unit=e?.attributes?.unit_of_measurement,expected=name.includes("current")?"A":name.endsWith("voltage")?"V":name.endsWith("power")?"W":name==="battery_soc"?"%":null;return fresh&&isRecent(name)&&(!unit||!expected||unit===expected)?numericState(states,this.config.entities[name]):null;};
     const r=this.estimateResults;

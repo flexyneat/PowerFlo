@@ -391,6 +391,37 @@ Default evidence is session-only. **Remember on this browser** explicitly opts i
 
 The offline preview simulates forecasts/weather without network access and starts with no completed accuracy evidence. Its battery/grid selectors and theme controls remain outside the installed card.
 
+## Waveshare sensor mapping coverage
+
+Use actual HA **entity IDs**, not friendly names. The editor exposes every role below. Optional additional electrical readings and daily/lifetime snapshots appear inside **System insights**, preserving the uncluttered topology and both battery estimates. Unmapped roles remain optional; unknown/unavailable reports never become zero.
+
+| Waveshare sensor | Card entity mapping | Presentation / meaning |
+|---|---|---|
+| Battery power / state of charge | `battery_power` / `battery_soc` | Battery card and estimates; confirm power sign |
+| Battery voltage / temperature | `battery_voltage` / `battery_temperature` | Battery card |
+| PV power | `solar_power` | Solar total |
+| PV1, PV2, PV3 power | `pv1_power`, `pv2_power`, `pv3_power` | Three MPPT channels |
+| PV1, PV2, PV3 voltage/current | `pv1_voltage/current` through `pv3_voltage/current` | MPPT detail |
+| Grid power / Grid L1 voltage | `grid_power` / `grid_voltage` | Grid card; confirm power role/sign |
+| AC / DC temperature | `ac_temperature` / `dc_temperature` | Optional electrical readings |
+| Grid L2 voltage | `grid_l2_voltage` | Register snapshot; this single-phase inverter does not establish a second physical phase merely because this entity exists |
+| Inverter output power | `inverter_output_power` | Separate electrical reading, **not automatically Protected load** |
+| External CT register 171 candidate | `external_ct_power_candidate` | Explicitly unvalidated diagnostic, never a flow/estimate input |
+| Daily PV production | `solar_today` | Solar Today summary and daily snapshot |
+| Daily grid import / export | `grid_today` / `grid_export_today` | Import summary / separate export snapshot |
+| Daily battery discharge / charge | `battery_today` / `battery_charge_today` | Discharge summary / separate charge snapshot |
+| Total PV production | `solar_total` | Lifetime snapshot |
+| Total grid import / export | `grid_import_total` / `grid_export_total` | Separate lifetime snapshots |
+| Total battery charge / discharge | `battery_charge_total` / `battery_discharge_total` | Separate lifetime snapshots |
+
+New snapshot mappings accept W/kW, Celsius/Fahrenheit and Wh/kWh/MWh as appropriate, and normalize the displayed units. Wrong units and missing timestamps are unavailable. Instantaneous optional readings expire at the configured maximum sample age; unchanged sensors may need upstream `last_reported` support or explicit forced updates. Counters are labelled **Reported snapshot** with HA-local report date/time: they are not guaranteed current-day values and never silently become Week/Month totals. Existing summaries and statistics retain their existing behavior.
+
+For Week/Month, separately select the verified cumulative production/import/discharge entity under `statistics.solar`, `statistics.grid`, `statistics.battery`; HA must expose compatible sum statistics. A lifetime number alone is not an interval total. Charge and export snapshots do not replace discharge/import summaries. Never derive `load_today` by adding inverter output and battery counters.
+
+The supplied sensor list does **not** establish a validated Protected load sensor, a grid-connected binary, operating status, or a Modbus freshness binary. Map these separately only after verifying their physical meanings. Do not infer grid availability from 0 W or use inverter output as Protected load without verification. Sensor names alone also cannot confirm exact-firmware register correctness.
+
+See [Waveshare commissioning](waveshare-commissioning-guide.html) before mapping live hardware. The demo's additional readings are illustrative only. No automatic device discovery, equipment writes or dependency changes are introduced.
+
 ## Gateway recovery and diagnostics
 
 The recovery-enabled profile passed YAML validation and a full ESP32-S3 build with ESPHome 2026.9.1 / ESP-IDF 5.5.5 using isolated dummy secrets (907,163-byte application; 105,747 bytes reported static RAM). This verifies compilation, not live recovery behavior. No device was flashed.

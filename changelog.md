@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — Waveshare sensor coverage
+
+- Add optional AC/DC temperature, L2 register voltage, separate inverter output and explicitly unvalidated CT-candidate mappings without changing flow or runtime roles.
+- Add separate daily battery-charge/grid-export and five lifetime energy snapshots inside System insights; retain report timestamps, unit validation and stale instantaneous states.
+- Preserve all existing features, transparent surfaces, JavaScript-only read-only behavior and both battery estimates; update mapping documentation, tests and illustrative offline demo. No version bump or release.
+
 ## Unreleased — gateway recovery and local diagnostics
 
 - Add password-protected fallback Wi-Fi after 90 seconds with a captive recovery portal; document its administrative firmware-upload boundary.

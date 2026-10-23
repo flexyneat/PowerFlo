@@ -28,6 +28,8 @@
     battery_voltage: 53.4, battery_temperature: 32.4, grid_power: 240, grid_voltage: 230.4,
     grid_frequency: 50, load_power: 3000, solar_today: 12.4, grid_today: 3.1, load_today: 10.2, battery_today: 1.8 };
   Object.assign(values,{pv1_voltage:320,pv1_current:5.1,pv2_voltage:315,pv2_current:5,pv3_voltage:322,pv3_current:5,battery_current:-37.5,bms_charge_current_limit:100,bms_discharge_current_limit:200});
+  // Illustrative snapshots only, never a claim about a viewer's live equipment.
+  Object.assign(values,{ac_temperature:42,dc_temperature:39,grid_l2_voltage:230.1,inverter_output_power:3100,external_ct_power_candidate:240,battery_charge_today:4.2,grid_export_today:.08,solar_total:1250,grid_import_total:940,grid_export_total:12,battery_charge_total:750,battery_discharge_total:690});
   const hass = { config: { time_zone: "Africa/Lagos" }, states: {},
     /**
      * Supplies synthetic history bounded to the requested date range.
@@ -104,7 +106,7 @@
     values.battery_current=values.battery_power/values.battery_voltage;
     for(const i of [1,2,3])values[`pv${i}_current`]=values[`pv${i}_power`]/values[`pv${i}_voltage`];
     const now = new Date().toISOString();
-    const unit=key=>key.endsWith("_voltage")?"V":key.includes("current")?"A":key==="battery_soc"?"%":key.endsWith("_power")?"W":key.endsWith("_today")?"kWh":undefined;
+    const unit=key=>key.endsWith("_temperature")?"°C":key.endsWith("_voltage")?"V":key.includes("current")?"A":key==="battery_soc"?"%":key.endsWith("_power")||key==="external_ct_power_candidate"?"W":key.endsWith("_today")||key.endsWith("_total")?"kWh":undefined;
     hass.states = Object.fromEntries(Object.entries(entities).map(([key, id]) => [id, { state: String(values[key]), attributes: {unit_of_measurement:unit(key)}, last_updated: now }]));
     hass.states["sun.sun"] = { state: "above_horizon", attributes: { next_setting: new Date(Date.now()+5*3600000).toISOString() } };
     hass.states["weather.demo_home"]={state:"partlycloudy",attributes:{supported_features:2,temperature:28,temperature_unit:"°C",attribution:"Simulated hourly weather · not a live Met.no forecast"}};
