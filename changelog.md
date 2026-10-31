@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — partial telemetry commissioning
+
+- Allow missing inverter-status and grid-connection mappings so valid solar, battery and load telemetry can render without fabricated signals. Unknown grid connection pauses grid flow and remains explicitly unavailable.
+- Preserve all card features and both estimates; add a regression test for omitted status mappings.
+
 ## Unreleased — gateway commissioning correction
 
 - Correct omitted -100 °C temperature offset after ×0.1 for battery, AC and DC readings; retain exact-firmware comparison as an acceptance gate and do not rewrite old history.

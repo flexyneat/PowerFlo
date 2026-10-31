@@ -67,6 +67,12 @@ describe("normalizeConfig", () => {
 });
 
 describe("validateConfig", () => {
+  it("allows unmapped status and grid connection without inventing signals", () => {
+    const entities = Object.fromEntries(Object.keys(DEFAULT_CONFIG.entities).map((key) => [key, `sensor.${key}`]));
+    entities.inverter_status = "";
+    entities.grid_connected = "";
+    expect(validateConfig(normalizeConfig({ entities }))).toEqual([]);
+  });
   it("names every missing required entity", () => {
     const errors = validateConfig(normalizeConfig());
     expect(errors).toContain("Missing required entity: battery_power");

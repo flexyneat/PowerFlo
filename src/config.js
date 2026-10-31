@@ -137,8 +137,8 @@ export const DEFAULT_CONFIG = Object.freeze({
 
 const REQUIRED_ENTITIES = Object.freeze([
   "freshness",
-  "inverter_status",
-  "grid_connected",
+  // Missing status/connection signals already render unavailable in the model.
+  // Do not require users to invent entities to view otherwise valid telemetry.
   "solar_power",
   "battery_soc",
   "battery_power",

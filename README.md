@@ -116,8 +116,8 @@ entities:
 | Required key | Expected value |
 | --- | --- |
 | `freshness` | A trustworthy boolean for current telemetry, not an always-on helper |
-| `inverter_status` | Readable operating-status text |
-| `grid_connected` | Boolean connection state; do not infer it from zero import |
+| `inverter_status` | Optional readable operating-status text; unmapped displays Unavailable |
+| `grid_connected` | Optional boolean connection state; unmapped displays connection unknown and pauses grid flow. Never infer it from zero import |
 | `solar_power` | Aggregate generation, W |
 | `battery_soc` | SOC, % |
 | `battery_power` | Signed battery-side power, W |
