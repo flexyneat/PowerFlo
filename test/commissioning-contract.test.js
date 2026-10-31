@@ -3,6 +3,27 @@
 import {readFile} from "node:fs/promises";
 import {describe,it,expect} from "vitest";
 describe("Waveshare commissioning contract",()=>{
+  it("decodes temperature offset and exposes raw status plus channel-age diagnostics",async()=>{
+    const yaml=await readFile(new URL("../waveshare-readonly.yaml",import.meta.url),"utf8");
+    for(const name of ["Battery temperature","AC temperature","DC temperature"]){
+      const block=yaml.slice(yaml.indexOf(`    name: ${name}\n`)).split("\n  - platform:")[0];
+      expect(block).toContain("- multiply: 0.1");expect(block).toContain("- offset: -100");
+    }
+    for(const name of ["Inverter status raw candidate","Grid relay raw candidate","PV1 response age","PV2 response age","PV3 response age","SOC response age","Battery power response age","Grid power response age","Load response age"])expect(yaml).toContain(`name: ${name}`);
+    expect(yaml).toContain("address: 59");expect(yaml).toContain("address: 194");
+    for(const name of ["Inverter status raw candidate","Grid relay raw candidate"]){
+      const block=yaml.slice(yaml.indexOf(`    name: ${name}\n`)).split("\n  - platform:")[0];
+      expect(block).toContain("reuse_previous_range: false");expect(block).toContain("entity_category: diagnostic");
+    }
+    for(const [name,id] of [["PV1","last_modbus_response_ms"],["PV2","last_pv2_ms"],["PV3","last_pv3_ms"],["SOC","last_soc_ms"],["Battery power","last_battery_ms"],["Grid power","last_grid_ms"],["Load","last_load_ms"]]){
+      const block=yaml.slice(yaml.indexOf(`    name: ${name} response age\n`)).split("\n  - platform:")[0];
+      expect(block).toContain(`if (id(${id}) == 0U) return {};`);
+      expect(block).toContain(`millis() - id(${id})`);
+    }
+    const load=yaml.slice(yaml.indexOf("    name: Load power\n")).split("\n  - platform:")[0];
+    expect(load).not.toContain("disabled_by_default: true");
+    expect(yaml).toContain("static_cast<uint32_t>(now - timestamp) >= 90000U");
+  });
   it("distinguishes confirmed firmware identity from unvalidated register semantics",async()=>{
     // An identity screenshot must never silently select a scale or certify a register map.
     for(const file of ["README.md","waveshare-commissioning-guide.html","waveshare-readonly.yaml"]){

@@ -424,6 +424,18 @@ See [Waveshare commissioning](waveshare-commissioning-guide.html) before mapping
 
 ## Gateway recovery and diagnostics
 
+### Commissioning correction: temperatures and missing roles
+
+The current source corrects battery (182), AC (91) and DC (90) temperatures to `raw × 0.1 − 100 °C`. The former profile omitted the offset. This follows the related single-phase [TempSensor decoder](https://github.com/kellerza/sunsynk/blob/main/src/sunsynk/sensors.py), not a claim of exact-firmware certification: compare timestamp-matched readings against the inverter after installation. Old Recorder values remain wrong; this change does not rewrite history. Do not hide invalid values with a plausible fixed temperature.
+
+The existing register-178 `Load power` candidate is now exposed by default as a diagnostic. If HA previously disabled it in the entity registry, changing the discovery default may not override that decision; review its entity settings manually. Compare its meaning and sign with actual backup/protected load before assigning `load_power`. Inverter output (175) is still a separate role.
+
+Registers 59 and 194 are available as **Inverter status raw candidate** and **Grid relay raw candidate**. Each starts a separate register range. They are read-only diagnostics from a related map, not automatically decoded or assigned to `inverter_status` / `grid_connected`. Unsupported codes, missing reports and stale reports must remain unknown; register 194's relay position must be distinguished from utility availability. No new decoded status/binary or equipment controls are created.
+
+Seven **response age** diagnostics cover PV1/2/3, SOC, battery power, grid power and load. A channel with no successful value is unknown, not zero seconds old. Compare these with the unchanged strict 90-second aggregate heartbeat to identify delayed/missing coverage. A shared Modbus timeout can still block several channels. Enabling a load entity is not itself proof that it was the cause; do not bypass the heartbeat or call last-known values live.
+
+Compile and install using your private secrets, then verify temperature, channel ages, raw status and relay behavior against the inverter. No automatic flash or inverter-setting changes are performed. Live PowerFlo flow/estimates require the missing roles to be independently validated; use a clearly labelled commissioning view in the meantime.
+
 The recovery-enabled profile passed YAML validation and a full ESP32-S3 build with ESPHome 2026.9.1 / ESP-IDF 5.5.5 using isolated dummy secrets (907,163-byte application; 105,747 bytes reported static RAM). This verifies compilation, not live recovery behavior. No device was flashed.
 
 The updated ESPHome template adds a password-protected fallback AP and an authenticated local web page without adding inverter controls. This is a source update; previously published YAML/firmware is not changed automatically.

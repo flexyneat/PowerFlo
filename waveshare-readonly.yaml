@@ -144,6 +144,32 @@ modbus_controller:
     continuous: false
 
 sensor:
+  # Related single-phase map candidates, isolated so an unsupported diagnostic
+  # does not share the primary telemetry reply range. Not dashboard-ready roles.
+  - platform: modbus_controller
+    modbus_controller_id: deye_inverter
+    name: Inverter status raw candidate
+    id: inverter_status_raw_candidate
+    register_type: holding
+    address: 59
+    reuse_previous_range: false
+    value_type: U_WORD
+    entity_category: diagnostic
+    force_update: true
+    accuracy_decimals: 0
+
+  - platform: modbus_controller
+    modbus_controller_id: deye_inverter
+    name: Grid relay raw candidate
+    id: grid_relay_raw_candidate
+    register_type: holding
+    address: 194
+    reuse_previous_range: false
+    value_type: U_WORD
+    entity_category: diagnostic
+    force_update: true
+    accuracy_decimals: 0
+
   # Board diagnostics.
   - platform: wifi_signal
     name: Wi-Fi signal
@@ -352,6 +378,8 @@ sensor:
     accuracy_decimals: 1
     filters:
       - multiply: 0.1
+      # Reference encoding: raw tenths of a degree with a +100 C bias.
+      - offset: -100
 
   - platform: modbus_controller
     modbus_controller_id: deye_inverter
@@ -693,7 +721,7 @@ sensor:
     state_class: measurement
     force_update: true
     accuracy_decimals: 0
-    disabled_by_default: true
+    # Exposed for commissioning; verify backup-load role before mapping it.
     entity_category: diagnostic
 
   - platform: modbus_controller
@@ -735,6 +763,7 @@ sensor:
     accuracy_decimals: 1
     filters:
       - multiply: 0.1
+      - offset: -100
 
   - platform: modbus_controller
     modbus_controller_id: deye_inverter
@@ -747,6 +776,85 @@ sensor:
     accuracy_decimals: 1
     filters:
       - multiply: 0.1
+      - offset: -100
+
+  # Diagnose strict heartbeat failures without weakening the freshness gate.
+  - platform: template
+    name: PV1 response age
+    unit_of_measurement: s
+    entity_category: diagnostic
+    accuracy_decimals: 0
+    update_interval: 15s
+    lambda: |-
+      // No successful response is unknown, never a misleading zero age.
+      if (id(last_modbus_response_ms) == 0U) return {};
+      return static_cast<uint32_t>(millis() - id(last_modbus_response_ms)) / 1000.0f;
+
+  - platform: template
+    name: PV2 response age
+    unit_of_measurement: s
+    entity_category: diagnostic
+    accuracy_decimals: 0
+    update_interval: 15s
+    lambda: |-
+      // No successful response is unknown, never a misleading zero age.
+      if (id(last_pv2_ms) == 0U) return {};
+      return static_cast<uint32_t>(millis() - id(last_pv2_ms)) / 1000.0f;
+
+  - platform: template
+    name: PV3 response age
+    unit_of_measurement: s
+    entity_category: diagnostic
+    accuracy_decimals: 0
+    update_interval: 15s
+    lambda: |-
+      // No successful response is unknown, never a misleading zero age.
+      if (id(last_pv3_ms) == 0U) return {};
+      return static_cast<uint32_t>(millis() - id(last_pv3_ms)) / 1000.0f;
+
+  - platform: template
+    name: SOC response age
+    unit_of_measurement: s
+    entity_category: diagnostic
+    accuracy_decimals: 0
+    update_interval: 15s
+    lambda: |-
+      // No successful response is unknown, never a misleading zero age.
+      if (id(last_soc_ms) == 0U) return {};
+      return static_cast<uint32_t>(millis() - id(last_soc_ms)) / 1000.0f;
+
+  - platform: template
+    name: Battery power response age
+    unit_of_measurement: s
+    entity_category: diagnostic
+    accuracy_decimals: 0
+    update_interval: 15s
+    lambda: |-
+      // No successful response is unknown, never a misleading zero age.
+      if (id(last_battery_ms) == 0U) return {};
+      return static_cast<uint32_t>(millis() - id(last_battery_ms)) / 1000.0f;
+
+  - platform: template
+    name: Grid power response age
+    unit_of_measurement: s
+    entity_category: diagnostic
+    accuracy_decimals: 0
+    update_interval: 15s
+    lambda: |-
+      // No successful response is unknown, never a misleading zero age.
+      if (id(last_grid_ms) == 0U) return {};
+      return static_cast<uint32_t>(millis() - id(last_grid_ms)) / 1000.0f;
+
+  - platform: template
+    name: Load response age
+    unit_of_measurement: s
+    entity_category: diagnostic
+    accuracy_decimals: 0
+    update_interval: 15s
+    lambda: |-
+      // No successful response is unknown, never a misleading zero age.
+      if (id(last_load_ms) == 0U) return {};
+      return static_cast<uint32_t>(millis() - id(last_load_ms)) / 1000.0f;
 
 binary_sensor:
   # This is a separate heartbeat. Raw Modbus sensors retain their last-known

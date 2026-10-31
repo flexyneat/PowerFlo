@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — gateway commissioning correction
+
+- Correct omitted -100 °C temperature offset after ×0.1 for battery, AC and DC readings; retain exact-firmware comparison as an acceptance gate and do not rewrite old history.
+- Expose existing load-power candidate by default, add isolated raw status59/relay194 diagnostics and seven per-channel response ages. Preserve strict freshness, native encrypted API/OTA and all read-only protections.
+- No automatic flash, decoded grid/status assertion, power-polarity change, version bump or release.
+
 ## Unreleased — Waveshare sensor coverage
 
 - Add optional AC/DC temperature, L2 register voltage, separate inverter output and explicitly unvalidated CT-candidate mappings without changing flow or runtime roles.
