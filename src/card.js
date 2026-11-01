@@ -508,7 +508,8 @@ export class PowerFloCard extends HTMLElement {
     if (model.dataState !== "fresh") this.cancelTextAnimations();
     this.dataset.operatingNormal = String(["normal", "running"].includes(model.inverterStatus));
     const gridLabel = model.connected === null ? "Grid status unavailable" : model.gridStatusBasis !== "relay signal" ? `${model.connected ? "Grid available" : "Grid outage suspected"} (${model.gridStatusBasis})` : model.connected ? "On-grid" : "Off-grid";
-    this.setText(".status", `${label(model.inverterStatus)} · ${gridLabel}`);
+    // Do not let an unmapped inverter status look like a grid-unavailable warning.
+    this.setText(".status", model.inverterStatus === "unavailable" ? gridLabel : `${label(model.inverterStatus)} · ${gridLabel}`);
     this.setText(".freshness", model.dataState === "fresh" ? "LIVE" : label(model.dataState));
     this.setText(".notice", model.dataState === "fresh" ? "" : `Telemetry is ${model.dataState}; flow motion is paused.`);
     this.setText(".inverter-state", label(model.inverterStatus));

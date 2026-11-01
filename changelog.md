@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — unambiguous grid header
+
+- Omit an unmapped inverter-status prefix from the main grid-status header while retaining the unavailable inverter state internally. No normal/connected state is invented.
+- Add regression coverage; dashboard embedding does not change existing views.
+
 ## Unreleased — grid evidence and demand intervals
 
 - Add opt-in, labelled voltage/power grid-availability evidence, with explicit connection-signal precedence, fresh-input guards and suspected-outage distinction. Keep inferred events out of the confirmed-relay outage ledger.

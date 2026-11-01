@@ -137,6 +137,13 @@ describe("visible flow arrows and forecast illustrations", () => {
     card.setConfig({...card.config,solar_capacity_kw:0});
     expect(card.shadowRoot.querySelector('[data-solar-capacity]').hidden).toBe(true);
   });
+  it("does not prefix a working grid indication with an unmapped inverter warning", () => {
+    const card=fixture();
+    card.config.entities.inverter_status="";
+    card.updateModel();
+    expect(card.shadowRoot.querySelector(".status").textContent).toBe("On-grid");
+    expect(card.latestModel.inverterStatus).toBe("unavailable");
+  });
   it("keeps configured target and a distinct full estimate in the battery during all states", () => {
     const card=fixture({battery_positive:"charge",battery_charge_target_soc:95,charge_taper_floor_ratio:1});
     const power=card.hassValue.states[card.config.entities.battery_power]; power.state="2000";
