@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — Recorder demand continuity
+
+- Render unchanged recorded load states continuously until the next recorded transition, rather than treating sparse state-change rows as communication failures.
+- Preserve explicit unavailable gaps and bound unconfirmed trailing observations; validate fresh current endpoints and retain interval coverage across identical live reports.
+- Add regression tests and clarify recorded-state coverage semantics.
+
 ## Unreleased — unambiguous grid header
 
 - Omit an unmapped inverter-status prefix from the main grid-status header while retaining the unavailable inverter state internally. No normal/connected state is invented.

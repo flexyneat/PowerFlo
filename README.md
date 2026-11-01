@@ -215,7 +215,7 @@ statistics:
 
 Statistics need energy units and sum support. Missing hours/counters are labelled partial; statistics paths split at gaps. The unfinished hour is not extrapolated. Inspect observations with pointer/touch or the keyboard time slider; Escape clears inspection.
 
-Recent demand is a separate trailing 15-minute window of `load_power`. Average is time-weighted over covered intervals; peak is the maximum trustworthy observation. Recorder backfills one entity at most once per minute per card. A reading holds to the next state but for no more than 60 seconds. Missing time is not zero demand or an indefinite hold. Partial averages show coverage; failures retain observed samples and expose a retry independent of energy-history retry.
+Recent demand is a separate trailing 15-minute window of `load_power`. Average is time-weighted over covered intervals; peak is the maximum recorded value. Recorder backfills one entity at most once per minute per card. Recorder stores state transitions, not every unchanged poll: a recorded state holds until the next transition, including an explicit unknown/unavailable transition. A fresh current reading can close the final recorded interval; unconfirmed trailing/live samples expire after 60 seconds. Coverage describes recorded states, not proof of uninterrupted hardware polling. Genuine unknown intervals remain gaps, never zero demand. Partial averages show coverage; failures retain observed samples and expose a retry independent of energy-history retry.
 
 ## Offline demo
 

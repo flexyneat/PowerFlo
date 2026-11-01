@@ -9,9 +9,10 @@ export const DEMAND_LIMITS = Object.freeze({ windowMs: 900_000, refreshMs: 60_00
  * @param {unknown} rows Recorder response.
  * @param {string} entityId Configured protected-load power entity.
  * @param {string} unit Sensor unit; absent legacy unit is treated as configured watts.
+ * @param {Object|null} current Fresh current-state endpoint, already converted to watts.
  * @returns {Array<{time:number,value:number|null}>} Sorted bounded observations.
  */
-export function parseDemandHistory(rows, entityId, unit = "W") {
+export function parseDemandHistory(rows, entityId, unit = "W", current = null) {
   if (!Array.isArray(rows) || !["W", "kW"].includes(unit)) return [];
   const points = new Map();
   for (const series of rows) {
@@ -25,7 +26,10 @@ export function parseDemandHistory(rows, entityId, unit = "W") {
       points.set(time, { time, value: Number.isFinite(watts) && watts >= 0 ? watts : null });
     }
   }
-  return [...points.values()].sort((a,b)=>a.time-b.time).slice(-DEMAND_LIMITS.maximumPoints);
+  if(current && Number.isFinite(current.time) && Number.isFinite(current.value) && current.value>=0) points.set(current.time,current);
+  const ordered=[...points.values()].sort((a,b)=>a.time-b.time).slice(-DEMAND_LIMITS.maximumPoints);
+  // Recorder stores state transitions, not a polling log: silence between rows is not a dropout.
+  return ordered.map((point,index)=>({...point,...(ordered[index+1] ? {recordedUntil:ordered[index+1].time} : {})}));
 }
 
 /**
@@ -38,12 +42,19 @@ export function parseDemandHistory(rows, entityId, unit = "W") {
  */
 export async function loadDemandHistory(hass, entityId, now = new Date(), unit = "W") {
   const rows = await hass.callApi("get", historyPath([entityId],new Date(now.getTime()-DEMAND_LIMITS.windowMs),now));
-  return parseDemandHistory(rows,entityId,unit);
+  const state=hass.states?.[entityId];
+  const time=Date.parse(state?.last_reported ?? state?.last_updated ?? "");
+  const value=typeof state?.state==="string" && state.state.trim()!=="" ? Number(state.state)*(unit==="kW"?1000:1) : NaN;
+  // A fresh endpoint closes a transition-only final interval; stale/future states cannot do so.
+  const current=Number.isFinite(time) && time<=now.getTime() && now.getTime()-time<=DEMAND_LIMITS.holdMs
+    && Number.isFinite(value) && value>=0 ? {time,value} : null;
+  return parseDemandHistory(rows,entityId,unit,current);
 }
 
 /**
  * Summarizes recorded power without filling unknown time with zero or indefinite holds.
- * An observation holds until the next state, but never longer than maxHoldMs.
+ * Recorded states hold to their next recorded transition (including unavailable).
+ * Unconfirmed trailing/live observations remain bounded by maxHoldMs.
  * @param {Array} samples Numeric observations and explicit null gap markers.
  * @param {number} now Window end in epoch milliseconds.
  * @param {number} windowMs Requested window duration.
@@ -56,9 +67,15 @@ export function demandSummary(samples, now = Date.now(), windowMs = DEMAND_LIMIT
     .map(p=>[p.time,p])).values()].sort((a,b)=>a.time-b.time);
   let energy = 0; let covered = 0; let peakWatts = null; let lastEnd = null;
   const points = [];
+  let recordedEnd=null; let recordedValue=null;
   for (const [index,sample] of ordered.entries()) {
-    if (!Number.isFinite(sample.value) || sample.value<0) continue;
-    const end = Math.min(now,ordered[index+1]?.time ?? now,sample.time+maxHoldMs);
+    if (!Number.isFinite(sample.value) || sample.value<0) { recordedEnd=null; recordedValue=null; continue; }
+    if(Number.isFinite(sample.recordedUntil) && sample.recordedUntil>sample.time) {
+      recordedEnd=sample.recordedUntil; recordedValue=sample.value;
+    } else if(sample.value!==recordedValue || sample.time>=recordedEnd) { recordedEnd=null; recordedValue=null; }
+    // Identical live reports inside a recorded interval must not shorten that interval.
+    const bound=recordedEnd ?? sample.time+maxHoldMs;
+    const end = Math.min(now,ordered[index+1]?.time ?? now,bound);
     const begin = Math.max(start,sample.time);
     if (end<begin || (end===begin && sample.time<begin)) continue;
     const duration=Math.max(0,end-begin);

@@ -3,6 +3,39 @@ import { describe, expect, it, vi } from "vitest";
 import { demandSummary, parseDemandHistory, loadDemandHistory } from "../src/load-trend.js";
 
 describe("recent protected-load demand", () => {
+  it("preserves a recorded hold across interleaved identical live samples", () => {
+    const points=parseDemandHistory([[{entity_id:"sensor.load",state:"1800",last_changed:new Date(0).toISOString()},
+      {state:"1700",last_changed:new Date(300_000).toISOString()}]],"sensor.load");
+    const result=demandSummary([...points,{time:60_000,value:1800}],330_000,330_000);
+    expect(result.coverage).toBe(1); expect(result.averageWatts).toBeCloseTo(1790.909);
+  });
+  it("closes a constant trailing Recorder state only with a fresh current endpoint", async () => {
+    const rows=[[{entity_id:"sensor.load",state:"1800",last_changed:new Date(0).toISOString()}]];
+    const hass={callApi:vi.fn(async()=>rows),states:{"sensor.load":{state:"1800",last_reported:new Date(300_000).toISOString()}}};
+    const points=await loadDemandHistory(hass,"sensor.load",new Date(330_000));
+    expect(demandSummary(points,330_000,330_000).coverage).toBe(1);
+    hass.states["sensor.load"].last_reported=new Date(120_000).toISOString();
+    expect(demandSummary(await loadDemandHistory(hass,"sensor.load",new Date(330_000)),330_000,330_000).coverage).toBeCloseTo(60_000/330_000);
+    hass.states["sensor.load"].last_reported=new Date(400_000).toISOString();
+    expect(demandSummary(await loadDemandHistory(hass,"sensor.load",new Date(330_000)),330_000,330_000).coverage).toBeCloseTo(60_000/330_000);
+  });
+  it("holds unchanged Recorder states to the next transition without false gaps", () => {
+    const rows=[[{entity_id:"sensor.load",state:"1800",last_changed:new Date(0).toISOString()},
+      {state:"1700",last_changed:new Date(300_000).toISOString()}]];
+    const result=demandSummary(parseDemandHistory(rows,"sensor.load"),330_000,330_000);
+    expect(result.coverage).toBe(1);
+    expect(result.averageWatts).toBeCloseTo(1790.909);
+    expect(result.points.some(p=>p.breakBefore)).toBe(false);
+  });
+  it("ends recorded holds at explicit unavailable states and bounds the trailing state", () => {
+    const rows=[[{entity_id:"sensor.load",state:"1800",last_changed:new Date(0).toISOString()},
+      {state:"unavailable",last_changed:new Date(300_000).toISOString()},
+      {state:"1700",last_changed:new Date(420_000).toISOString()}]];
+    const result=demandSummary(parseDemandHistory(rows,"sensor.load"),600_000,600_000);
+    expect(result.coverage).toBe(.6);
+    expect(result.points.find(p=>p.time===420_000).breakBefore).toBe(true);
+    expect(result.points.at(-1).time).toBe(480_000);
+  });
   it("weights actual intervals rather than the number of samples", () => {
     const result = demandSummary([{time:0,value:1000},{time:30_000,value:3000},{time:90_000,value:2000}], 120_000, 120_000, 60_000);
     expect(result.averageWatts).toBe(2250); expect(result.peakWatts).toBe(3000);

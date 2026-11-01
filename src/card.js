@@ -713,7 +713,7 @@ export class PowerFloCard extends HTMLElement {
     const coverage = Math.floor(result.coverage*100);
     const freshness = this.latestModel?.dataState;
     const message = this.demandState === "error" ? `Load history unavailable · ${coverage}% observed coverage` : result.averageWatts === null
-      ? (this.demandLoading ? "Loading recent demand" : "Collecting recent demand") : `Last 15 minutes · ${coverage<100 ? `partial ${coverage}% coverage` : "observed coverage"}`;
+      ? (this.demandLoading ? "Loading recent demand" : "Collecting recent demand") : `Last 15 minutes · ${coverage<100 ? `partial ${coverage}% recorded coverage` : "recorded state coverage"}`;
     this.setText('[data-load-coverage]',`${message}${freshness && freshness !== "fresh" ? ` · telemetry ${freshness}` : ""}`);
     this.shadowRoot.querySelector(".demand-retry").hidden = this.demandState !== "error";
     if(this.hassValue&&this.latestModel)this.readinessPanel?.update(this.hassValue,this.config,this.latestModel,this.demandSamples);
@@ -731,8 +731,8 @@ export class PowerFloCard extends HTMLElement {
     try {
       const points=await loadDemandHistory(hass,id,new Date(),hass.states[id]?.attributes?.unit_of_measurement ?? "W");
       if (request !== this.demandRequest) return;
-      // Merge post-request live observations after Recorder points, preserving newer reports at the same timestamp.
-      this.demandSamples=[...new Map([...points,...this.demandSamples].map(p=>[p.time,p])).values()]
+      // Recorder enriches matching timestamps with transition bounds; later live timestamps remain intact.
+      this.demandSamples=[...new Map([...this.demandSamples,...points].map(p=>[p.time,p])).values()]
         .sort((a,b)=>a.time-b.time).slice(-DEMAND_LIMITS.maximumPoints);
       this.demandState="ready";
     } catch {
