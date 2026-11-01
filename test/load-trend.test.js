@@ -6,12 +6,13 @@ describe("recent protected-load demand", () => {
   it("weights actual intervals rather than the number of samples", () => {
     const result = demandSummary([{time:0,value:1000},{time:30_000,value:3000},{time:90_000,value:2000}], 120_000, 120_000, 60_000);
     expect(result.averageWatts).toBe(2250); expect(result.peakWatts).toBe(3000);
-    expect(result.coverage).toBe(1); expect(result.points).toHaveLength(3);
+    expect(result.coverage).toBe(1); expect(result.points).toHaveLength(6);
   });
   it("does not carry readings across missing intervals or invent zero demand", () => {
     const result = demandSummary([{time:0,value:1000},{time:120_000,value:null},{time:180_000,value:3000}],240_000,240_000,60_000);
     expect(result.averageWatts).toBe(2000); expect(result.coverage).toBe(.5);
-    expect(result.points[1].breakBefore).toBe(true);
+    expect(result.points.find(p=>p.time===180_000).breakBefore).toBe(true);
+    expect(result.points[1]).toEqual({time:60_000,value:1000});
   });
   it("clips a boundary seed and rejects future samples", () => {
     const result = demandSummary([{time:40_000,value:1000},{time:100_000,value:2000},{time:160_000,value:9999}],150_000,60_000,60_000);

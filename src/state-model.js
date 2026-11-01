@@ -134,14 +134,40 @@ export function deriveModel(states, config, previous) {
   const batteryPolarity = powerPolarity(batteryPower, previous.battery, config.flow_threshold_w, config.flow_release_w);
   const gridPolarity = powerPolarity(gridPower, previous.grid, config.flow_threshold_w, config.flow_release_w);
   const battery = batteryMode(batteryPolarity, config.battery_positive, usable && batteryPower !== null);
-  const connected = booleanState(states, ids.grid_connected);
-  const grid = gridMode(gridPolarity, config.grid_positive, connected, usable && (gridPower !== null || connected === false));
+  let connected = booleanState(states, ids.grid_connected);
+  let gridStatusBasis = connected === null ? "unavailable" : "relay signal";
+  let gridPowerUsable = gridPower !== null;
+  if (connected === null && usable && config.grid_status_fallback) {
+    // This is a display inference, not proof of relay position or compliant AC quality.
+    const recent = id => {
+      const time = Date.parse(states[id]?.last_reported ?? states[id]?.last_updated ?? "");
+      return Number.isFinite(time) && time <= Date.now() && Date.now()-time <= config.runtime_max_sample_age_seconds*1000;
+    };
+    const voltage = recent(ids.grid_voltage) ? numericState(states,ids.grid_voltage) : null;
+    const power = recent(ids.grid_power) ? gridPower : null;
+    gridPowerUsable = power !== null;
+    const flowEvidence = power !== null && Math.abs(power) >= config.flow_threshold_w;
+    if (voltage !== null && voltage >= config.grid_voltage_available_min && voltage <= config.grid_voltage_available_max) {
+      connected = true;
+      gridStatusBasis = flowEvidence ? "voltage + power based" : "voltage-based";
+    } else if (voltage !== null && voltage >= 0 && voltage <= config.grid_voltage_absent_max && power !== null && Math.abs(power) <= config.flow_release_w) {
+      connected = false;
+      gridStatusBasis = "voltage + power based";
+    } else if (voltage === null && flowEvidence && config.grid_power_verified) {
+      connected = true;
+      gridStatusBasis = "power-based";
+    } else {
+      gridStatusBasis = voltage !== null ? "conflicting / abnormal voltage" : "telemetry unavailable";
+    }
+  }
+  const grid = gridMode(gridPolarity, config.grid_positive, connected, usable && (gridPowerUsable || connected === false));
   const solar = usable && solarPower !== null && solarPower >= config.flow_threshold_w ? "producing" : "idle";
   const load = usable && loadPower !== null && loadPower >= config.flow_threshold_w ? "powered" : "zero";
   return {
     dataState,
     inverterStatus: textState(states, ids.inverter_status) ?? "unavailable",
     connected,
+    gridStatusBasis,
     solar,
     battery,
     grid,

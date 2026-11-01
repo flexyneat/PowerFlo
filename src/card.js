@@ -507,7 +507,8 @@ export class PowerFloCard extends HTMLElement {
     this.dataset.state = model.dataState;
     if (model.dataState !== "fresh") this.cancelTextAnimations();
     this.dataset.operatingNormal = String(["normal", "running"].includes(model.inverterStatus));
-    this.setText(".status", `${label(model.inverterStatus)} · ${model.connected === null ? "Grid connection unknown" : model.connected ? "On-grid" : "Off-grid"}`);
+    const gridLabel = model.connected === null ? "Grid status unavailable" : model.gridStatusBasis !== "relay signal" ? `${model.connected ? "Grid available" : "Grid outage suspected"} (${model.gridStatusBasis})` : model.connected ? "On-grid" : "Off-grid";
+    this.setText(".status", `${label(model.inverterStatus)} · ${gridLabel}`);
     this.setText(".freshness", model.dataState === "fresh" ? "LIVE" : label(model.dataState));
     this.setText(".notice", model.dataState === "fresh" ? "" : `Telemetry is ${model.dataState}; flow motion is paused.`);
     this.setText(".inverter-state", label(model.inverterStatus));
@@ -542,15 +543,16 @@ export class PowerFloCard extends HTMLElement {
       this.setText('[data-meta="grid"]',`Telemetry ${model.dataState} · last reported ${model.connected === false ? "disconnected" : model.connected === true ? "connected" : "unknown"}`);
     } else if (model.grid === "disconnected") {
       // A retained nonzero sensor value is not evidence of current flow through a disconnected grid port.
-      this.setText('[data-value="grid"]',"Disconnected"); this.setText('[data-meta="grid"]',"Grid flow stopped");
+      this.setText('[data-value="grid"]',model.gridStatusBasis === "relay signal" ? "Disconnected" : "Outage suspected");
+      this.setText('[data-meta="grid"]',model.gridStatusBasis === "relay signal" ? "Grid flow stopped" : `${model.gridStatusBasis} · ${formatValue(model.values.gridVoltage,"V")} · not relay-confirmed`);
     } else if (model.connected === null) {
       // A missing connection mapping is not an outage or missing voltage telemetry.
       const connectionReason = this.config.entities.grid_connected ? "Connection unknown" : "Connection signal not mapped";
-      this.setText('[data-value="grid"]',"Connection unknown");
+      this.setText('[data-value="grid"]',this.config.grid_status_fallback ? "Status unavailable" : "Connection unknown");
       this.setText('[data-meta="grid"]',`${connectionReason} · ${formatValue(model.values.gridVoltage,"V")} reported · grid flow paused`);
     } else {
-      this.setReading('[data-value="grid"]',model.values.gridPower === null ? null : Math.abs(model.values.gridPower)/1000,"kW",2);
-      this.setText('[data-meta="grid"]',`${model.grid === "unavailable" ? "Connected · power unavailable" : label(model.grid)} · ${formatValue(model.values.gridVoltage,"V")} · ${formatValue(model.values.gridFrequency,"Hz")}`);
+      this.setReading('[data-value="grid"]',model.grid === "unavailable" || model.values.gridPower === null ? null : Math.abs(model.values.gridPower)/1000,"kW",2);
+      this.setText('[data-meta="grid"]',`${model.grid === "unavailable" ? "Available · power unavailable" : model.gridStatusBasis !== "relay signal" && model.grid === "static" ? "Grid available" : label(model.grid)} · ${formatValue(model.values.gridVoltage,"V")} · ${model.gridStatusBasis === "relay signal" ? formatValue(model.values.gridFrequency,"Hz") : `${model.gridStatusBasis} · not relay-confirmed`}`);
     }
   }
 
@@ -650,7 +652,8 @@ export class PowerFloCard extends HTMLElement {
     sourceText.textContent+=energy?`\n${label(this.period)} gross energy counters: ${Object.entries(energy.shares).map(([key,value])=>`${label(key)} ${(value*100).toFixed(0)}%`).join(" · ")}. Storage cycling can count energy twice; not net load attribution; inspect history coverage.`:"\nEnergy proportions: verify production/import/discharge counter roles and recorded coverage first.";
     const issues=inspectEntities(states,this.config,now);
     set("quality",issues.length?issues.map(x=>x.message).join("\n"):"Required readings, units and timestamps passed. Verify polarity against the inverter; automatic sign detection is not safe.");
-    this.outageSession.observe(now,fresh&&isRecent("grid_power")?model.connected:null);
+    // Inferred voltage status must not enter the confirmed-relay outage ledger.
+    this.outageSession.observe(now,fresh&&isRecent("grid_power")&&model.gridStatusBasis==="relay signal"?model.connected:null);
     const format=time=>new Intl.DateTimeFormat(undefined,{weekday:"short",hour:"numeric",minute:"2-digit",hour12:this.config.clock_format!=="24",timeZone:this.hassValue.config?.time_zone}).format(new Date(time));
     const activeHistory=this.outageBackfill.at(-1),activeLive=this.outageSession.events.at(-1);
     if(activeHistory?.end===null&&activeLive?.end===null&&fresh&&model.connected===false){activeLive.start=Math.min(activeLive.start,activeHistory.start);activeLive.partial=activeHistory.partial;}

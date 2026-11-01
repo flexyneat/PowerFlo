@@ -65,6 +65,8 @@ export function demandSummary(samples, now = Date.now(), windowMs = DEMAND_LIMIT
     covered+=duration; energy+=duration*sample.value;
     peakWatts=peakWatts===null ? sample.value : Math.max(peakWatts,sample.value);
     points.push({time:begin,value:sample.value,...(lastEnd!==null && begin>lastEnd ? {breakBefore:true} : {})});
+    // Draw the complete bounded hold, not just its start (which left false visual holes).
+    if (end > begin) points.push({time:end,value:sample.value});
     lastEnd=end;
   }
   return {averageWatts:covered ? energy/covered : null,peakWatts,coverage:Math.min(1,covered/windowMs),

@@ -2,6 +2,14 @@
 
 A transparent, read-only Home Assistant card for solar, battery, grid and load power flow. Map your existing entities, configure your system's ratings, and see what is supplying your loads now.
 
+### Provisional grid availability
+
+`grid_status_fallback: true` opts into labelled voltage/power evidence when no usable `grid_connected` signal exists. A valid explicit connection signal takes precedence. Fresh voltage in the configurable 180–270 V band indicates **Grid available (voltage-based)**, even at zero import. Fresh voltage at or below 50 V together with negligible fresh power indicates **Outage suspected**, not a relay-confirmed outage. Conflicting, stale, missing or abnormal readings remain unavailable. Negative voltage is rejected. Verified nonzero grid power can establish availability when voltage is missing; set `grid_power_verified` only after validating the physical measurement point and polarity.
+
+YAML options `grid_voltage_available_min`, `grid_voltage_available_max` and `grid_voltage_absent_max` customize display evidence thresholds. These are not inverter trip settings or grid-code limits. Source age uses `runtime_max_sample_age_seconds`; the displayed estimate is limited by actual gateway polling and network delivery, not real-time mains protection. Inferred events do not enter the confirmed-relay outage ledger. This display is not a safety, protection or guaranteed outage-alert system.
+
+The protected-load graph draws each valid, bounded held interval to its endpoint and preserves real unknown/stale gaps. For sensors that only publish changes, arrange source-side repeated reports on actual successful polls, rather than inventing client-side samples or indefinitely connecting missing history. Historical gaps cannot be retroactively repaired by a firmware update.
+
 ![PowerFlo Precision: battery estimates, protected-load trend and energy history](assets/current-design.png)
 
 *Current development design; readings are simulated and demo controls are hidden. PowerFlo does not discover hardware, connect directly to an inverter or change inverter settings.*

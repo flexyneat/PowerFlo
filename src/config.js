@@ -28,6 +28,10 @@
  * @property {boolean} readiness_enabled Show conditional overnight readiness and scenario tools.
  * @property {boolean} preparedness_enabled Show preparedness row/details independently of the simulator.
  * @property {boolean} grid_power_verified Physical grid power role and configured sign have been confirmed.
+ * @property {boolean} grid_status_fallback Opt-in voltage/power availability inference, not relay confirmation.
+ * @property {number} grid_voltage_available_min Minimum displayed normal-voltage evidence, not an inverter trip setting.
+ * @property {number} grid_voltage_available_max Maximum displayed normal-voltage evidence.
+ * @property {number} grid_voltage_absent_max Maximum voltage used with negligible power to suspect outage.
  * @property {number} export_threshold_w Strict export threshold for session observation, not inverter control.
  * @property {number} export_duration_seconds Continuous export duration required for an observed event.
  * @property {boolean} standby_measurement_verified User/installer verified inverter-only idle sensor scope and behavior.
@@ -73,6 +77,10 @@ export const DEFAULT_CONFIG = Object.freeze({
   readiness_enabled: true,
   preparedness_enabled: true,
   grid_power_verified: false,
+  grid_status_fallback: false,
+  grid_voltage_available_min: 180,
+  grid_voltage_available_max: 270,
+  grid_voltage_absent_max: 50,
   export_threshold_w: 50,
   export_duration_seconds: 300,
   standby_measurement_verified: false,
@@ -204,6 +212,10 @@ export function normalizeConfig(input = {}) {
     readiness_enabled: input.readiness_enabled !== false,
     preparedness_enabled: input.preparedness_enabled !== false,
     grid_power_verified: input.grid_power_verified === true,
+    grid_status_fallback: input.grid_status_fallback === true,
+    grid_voltage_available_min: finiteInRange(input.grid_voltage_available_min,180,60,500),
+    grid_voltage_available_max: finiteInRange(input.grid_voltage_available_max,270,60,500),
+    grid_voltage_absent_max: finiteInRange(input.grid_voltage_absent_max,50,0,59),
     export_threshold_w: finiteInRange(input.export_threshold_w,50,1,1000000),
     export_duration_seconds: finiteInRange(input.export_duration_seconds,300,30,86400),
     standby_measurement_verified: input.standby_measurement_verified === true,

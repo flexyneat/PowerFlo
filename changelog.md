@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — grid evidence and demand intervals
+
+- Add opt-in, labelled voltage/power grid-availability evidence, with explicit connection-signal precedence, fresh-input guards and suspected-outage distinction. Keep inferred events out of the confirmed-relay outage ledger.
+- Draw complete bounded load intervals instead of only their start points; retain genuine gaps.
+- Add configuration/editor support, source-freshness and conflict regression tests, and document inference limitations.
+
 ## Unreleased — quadrant boundaries and grid diagnostics
 
 - Restore theme-native transparent borders around Solar, Battery, Grid and Protected load, with mobile text insets.

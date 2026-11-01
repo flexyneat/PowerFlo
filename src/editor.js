@@ -101,6 +101,7 @@ export class PowerFloEditor extends HTMLElement {
     behavior.append(this.createSelectField("readiness_enabled","Overnight readiness",[["true","Show readiness and simulator"],["false","Hide readiness and simulator"]]));
     behavior.append(this.createSelectField("preparedness_enabled","Show outage preparedness",[["true","Show preparedness"],["false","Hide preparedness; keep simulator"]]));
     behavior.append(this.createSelectField("grid_power_verified","Grid power role and polarity confirmed",[["false","Not verified"],["true","Verified at grid connection point"]]));
+    behavior.append(this.createSelectField("grid_status_fallback","Provisional voltage/power grid status",[["false","Relay signal only"],["true","Allow labelled inference"]]));
     behavior.append(this.createField("export_threshold_w","Sustained export observation threshold (W)","number"));
     behavior.append(this.createField("export_duration_seconds","Sustained export observation duration (seconds)","number"));
     behavior.append(this.createSelectField("standby_measurement_verified","Standby sensor is qualified inverter-only idle measurement",[["false","Not verified"],["true","Verified scope and idle-only behavior"]]));
@@ -207,7 +208,7 @@ export class PowerFloEditor extends HTMLElement {
     if (!path) return;
     try {
       let value = control.type === "number" ? Number(control.value) : control.value;
-      if(["use_learned_taper","energy_sources_verified","readiness_enabled","preparedness_enabled","grid_power_verified","standby_measurement_verified","solar_outlook_enabled","estimate_accuracy_enabled"].includes(path))value=control.value==="true";
+      if(["use_learned_taper","energy_sources_verified","readiness_enabled","preparedness_enabled","grid_power_verified","grid_status_fallback","standby_measurement_verified","solar_outlook_enabled","estimate_accuracy_enabled"].includes(path))value=control.value==="true";
       if(["readiness_average_w","standby_assumed_w"].includes(path)&&control.value==="")value=null;
       if (path === "image_upload" && control instanceof HTMLInputElement && control.files?.[0]) {
         value = await readImageFile(control.files[0]);
