@@ -507,7 +507,7 @@ export class PowerFloCard extends HTMLElement {
     this.dataset.state = model.dataState;
     if (model.dataState !== "fresh") this.cancelTextAnimations();
     this.dataset.operatingNormal = String(["normal", "running"].includes(model.inverterStatus));
-    const gridLabel = model.connected === null ? "Grid status unavailable" : model.gridStatusBasis !== "relay signal" ? `${model.connected ? "Grid available" : "Grid outage suspected"} (${model.gridStatusBasis})` : model.connected ? "On-grid" : "Off-grid";
+    const gridLabel = model.dataState !== "fresh" ? "Telemetry interrupted · grid state unconfirmed" : model.connected === null ? "Grid status unconfirmed" : model.gridStatusBasis !== "relay signal" ? `${model.connected ? "Grid available" : "Grid outage suspected"} (${model.gridStatusBasis})` : model.connected ? "On-grid" : "Off-grid";
     // Do not let an unmapped inverter status look like a grid-unavailable warning.
     this.setText(".status", model.inverterStatus === "unavailable" ? gridLabel : `${label(model.inverterStatus)} · ${gridLabel}`);
     this.setText(".freshness", model.dataState === "fresh" ? "LIVE" : label(model.dataState));
@@ -540,8 +540,8 @@ export class PowerFloCard extends HTMLElement {
     node.dataset.connection=model.dataState !== "fresh" ? model.dataState : model.grid === "disconnected" ? "disconnected" : model.connected === null ? "unknown" : "connected";
     this.shadowRoot.querySelector('[data-grid-disconnect]').setAttribute("visibility",node.dataset.connection==="disconnected" ? "visible" : "hidden");
     if (model.dataState !== "fresh") {
-      this.setText('[data-value="grid"]',label(model.dataState));
-      this.setText('[data-meta="grid"]',`Telemetry ${model.dataState} · last reported ${model.connected === false ? "disconnected" : model.connected === true ? "connected" : "unknown"}`);
+      this.setText('[data-value="grid"]',"Telemetry interrupted");
+      this.setText('[data-meta="grid"]',"Gateway data missing or stale · grid state unconfirmed, not a detected outage");
     } else if (model.grid === "disconnected") {
       // A retained nonzero sensor value is not evidence of current flow through a disconnected grid port.
       this.setText('[data-value="grid"]',model.gridStatusBasis === "relay signal" ? "Disconnected" : "Outage suspected");

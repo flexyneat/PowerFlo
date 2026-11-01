@@ -31,6 +31,26 @@ beforeEach(() => {
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe("battery panel runtime", () => {
+  it("distinguishes gateway interruption from a utility outage", () => {
+    const card=fixture(); card.hassValue.states[card.config.entities.freshness].state="unavailable"; card.updateModel();
+    expect(card.shadowRoot.querySelector('[data-value="grid"]').textContent).toBe("Telemetry interrupted");
+    expect(card.shadowRoot.querySelector('.status').textContent).toContain("grid state unconfirmed");
+    expect(card.shadowRoot.querySelector('[data-grid-disconnect]').getAttribute("visibility")).toBe("hidden");
+    card.hassValue.states[card.config.entities.freshness].state="on"; card.updateModel();
+    expect(card.shadowRoot.querySelector('.status').textContent).toContain("On-grid");
+  });
+  it("mirrors enclosure-side terminal heights and lanes above and below", () => {
+    const canvas={left:0,top:0,width:1000,height:600};
+    const inverter={left:430,right:570,top:150,bottom:350,width:140,height:200,caption:{left:400,right:600}};
+    for(const [upper,lower,left] of [["solar","battery",true],["grid","load",false]]) {
+      const a=connectorPath(canvas,inverter,{left:left?0:670,right:left?330:1000,top:0,height:200},upper);
+      const b=connectorPath(canvas,inverter,{left:left?0:670,right:left?330:1000,top:400,height:200},lower);
+      expect(a.match(/H([^ ]+)$/)[1]).toBe(b.match(/H([^ ]+)$/)[1]);
+      const ay=Number(a.match(/Q[^Q]+? ([\d.]+) H/)[1]);
+      const by=Number(b.match(/Q[^Q]+? ([\d.]+) H/)[1]);
+      expect(ay+by).toBe(inverter.top+inverter.bottom);
+    }
+  });
   it("labels reserve as a discharge threshold, not a charging destination", () => {
     const card=fixture({battery_positive:"charge"}); card.updateModel();
     expect(card.shadowRoot.querySelector('[data-meta="battery-runtime"]').textContent).toBe("Not discharging (charging)");
@@ -116,7 +136,7 @@ describe("visible flow arrows and forecast illustrations", () => {
     expect(root.querySelector('[data-meta="grid"]').textContent).toContain("Connection unknown");
     expect(root.querySelector('[data-value="grid"]').textContent).toBe("Connection unknown");
     card.hassValue.states[card.config.entities.freshness].state="off"; card.updateModel();
-    expect(root.querySelector('[data-value="grid"]').textContent).toBe("Stale");
+    expect(root.querySelector('[data-value="grid"]').textContent).toBe("Telemetry interrupted");
   });
   it("shows measured voltage without inventing a connected grid when its signal is unmapped", () => {
     const card=fixture();
@@ -270,10 +290,10 @@ describe("visible flow arrows and forecast illustrations", () => {
     for (const name of ["solar", "grid", "battery", "load"]) root.querySelector(`.node.${name}`).getBoundingClientRect = () => ({ left: 0, right: 300, top: 0, height: 200 });
     card.updateConnectorGeometry();
     const path = root.querySelector('[data-flow-path="solar"]');
-    expect(Number(path.getAttribute("d").match(/V([^ ]+)$/)[1])).toBeCloseTo(120 + 360 * DEFAULT_ART_BOUNDS.top - FLOW_GEOMETRY.arrowClearance);
+    expect(Number(path.getAttribute("d").match(/H([^ ]+)$/)[1])).toBeCloseTo(400+200*DEFAULT_ART_BOUNDS.left-FLOW_GEOMETRY.arrowClearance);
     card.dataset.customImage = "true";
     card.updateConnectorGeometry();
-    expect(Number(path.getAttribute("d").match(/V([^ ]+)$/)[1])).toBe(120 - FLOW_GEOMETRY.arrowClearance);
+    expect(Number(path.getAttribute("d").match(/H([^ ]+)$/)[1])).toBe(400-FLOW_GEOMETRY.arrowClearance);
     expect(root.querySelectorAll("circle.particle")).toHaveLength(0);
     expect(root.querySelectorAll("path.particle")).toHaveLength(12);
   });

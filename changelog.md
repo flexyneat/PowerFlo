@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — symmetric connections and communication status
+
+- Mirror upper and lower enclosure-side flow routes while preserving caption clearance and the grid-disconnect marker.
+- Label stale/missing gateway telemetry as an interruption, not a detected grid outage; keep flow paused until fresh data returns.
+- Add geometric symmetry and interruption/recovery regression coverage.
+
 ## Unreleased — Recorder demand continuity
 
 - Render unchanged recorded load states continuously until the next recorded transition, rather than treating sparse state-change rows as communication failures.
