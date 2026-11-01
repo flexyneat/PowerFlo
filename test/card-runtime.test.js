@@ -114,8 +114,21 @@ describe("visible flow arrows and forecast illustrations", () => {
     expect(root.querySelector('[data-meta="grid"]').textContent).not.toContain("230");
     card.hassValue.states[card.config.entities.grid_connected].state="unavailable"; card.updateModel();
     expect(root.querySelector('[data-meta="grid"]').textContent).toContain("Connection unknown");
+    expect(root.querySelector('[data-value="grid"]').textContent).toBe("Connection unknown");
     card.hassValue.states[card.config.entities.freshness].state="off"; card.updateModel();
     expect(root.querySelector('[data-value="grid"]').textContent).toBe("Stale");
+  });
+  it("shows measured voltage without inventing a connected grid when its signal is unmapped", () => {
+    const card=fixture();
+    card.config.entities.grid_connected="";
+    card.hassValue.states[card.config.entities.grid_voltage].state="240.2";
+    card.updateModel();
+    const root=card.shadowRoot;
+    expect(root.querySelector('[data-value="grid"]').textContent).toBe("Connection unknown");
+    expect(root.querySelector('[data-meta="grid"]').textContent).toContain("Connection signal not mapped");
+    expect(root.querySelector('[data-meta="grid"]').textContent).toContain("240.2 V");
+    expect(root.querySelector('[data-flow-path="grid"]').dataset.direction).toBe("stopped");
+    expect(root.querySelector("style").textContent).toContain(".node{border:var(--pf-border-width) solid var(--pf-border-strong)");
   });
   it("shows optional installed array size without modifying measured solar power", () => {
     const card=fixture({solar_capacity_kw:9.6}); card.updateModel();

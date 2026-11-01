@@ -507,7 +507,7 @@ export class PowerFloCard extends HTMLElement {
     this.dataset.state = model.dataState;
     if (model.dataState !== "fresh") this.cancelTextAnimations();
     this.dataset.operatingNormal = String(["normal", "running"].includes(model.inverterStatus));
-    this.setText(".status", `${label(model.inverterStatus)} · ${model.connected === null ? "Grid unavailable" : model.connected ? "On-grid" : "Off-grid"}`);
+    this.setText(".status", `${label(model.inverterStatus)} · ${model.connected === null ? "Grid connection unknown" : model.connected ? "On-grid" : "Off-grid"}`);
     this.setText(".freshness", model.dataState === "fresh" ? "LIVE" : label(model.dataState));
     this.setText(".notice", model.dataState === "fresh" ? "" : `Telemetry is ${model.dataState}; flow motion is paused.`);
     this.setText(".inverter-state", label(model.inverterStatus));
@@ -544,7 +544,10 @@ export class PowerFloCard extends HTMLElement {
       // A retained nonzero sensor value is not evidence of current flow through a disconnected grid port.
       this.setText('[data-value="grid"]',"Disconnected"); this.setText('[data-meta="grid"]',"Grid flow stopped");
     } else if (model.connected === null) {
-      this.setText('[data-value="grid"]',"Unavailable"); this.setText('[data-meta="grid"]',"Connection unknown · grid flow paused");
+      // A missing connection mapping is not an outage or missing voltage telemetry.
+      const connectionReason = this.config.entities.grid_connected ? "Connection unknown" : "Connection signal not mapped";
+      this.setText('[data-value="grid"]',"Connection unknown");
+      this.setText('[data-meta="grid"]',`${connectionReason} · ${formatValue(model.values.gridVoltage,"V")} reported · grid flow paused`);
     } else {
       this.setReading('[data-value="grid"]',model.values.gridPower === null ? null : Math.abs(model.values.gridPower)/1000,"kW",2);
       this.setText('[data-meta="grid"]',`${model.grid === "unavailable" ? "Connected · power unavailable" : label(model.grid)} · ${formatValue(model.values.gridVoltage,"V")} · ${formatValue(model.values.gridFrequency,"Hz")}`);

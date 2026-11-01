@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — quadrant boundaries and grid diagnostics
+
+- Restore theme-native transparent borders around Solar, Battery, Grid and Protected load, with mobile text insets.
+- Distinguish unknown grid connection from unavailable measurements and show reported voltage without inferring connection or starting grid flow.
+
 ## Unreleased — partial telemetry commissioning
 
 - Allow missing inverter-status and grid-connection mappings so valid solar, battery and load telemetry can render without fabricated signals. Unknown grid connection pauses grid flow and remains explicitly unavailable.
