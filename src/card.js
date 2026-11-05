@@ -872,7 +872,7 @@ export class PowerFloCard extends HTMLElement {
       this.setReading(`[data-summary-value="${name}"]`, total, "kWh", 1, false);
       this.setText(`[data-coverage="${name}"]`, !(this.period === "today" ? id : statisticId) ? "Map an energy entity" : loading ? "Loading history" : failed ? "History unavailable" :
         result.total === null ? this.period === "today" ? "No recorded samples" : result.status === "missing" ? "Energy statistics not configured" : "No completed statistics" :
-        this.period === "today" ? "Daily energy" : `${result.partial ? "Partial · " : ""}Statistics through ${new Intl.DateTimeFormat(undefined,{timeZone,hour:"numeric",minute:"2-digit",hour12:this.config.clock_format!=="24"}).format(new Date(result.end))}`);
+        this.period === "today" ? name === "solar" ? "Solar energy today" : "Daily energy" : `${result.partial ? "Partial · " : ""}Statistics through ${new Intl.DateTimeFormat(undefined,{timeZone,hour:"numeric",minute:"2-digit",hour12:this.config.clock_format!=="24"}).format(new Date(result.end))}`);
       this.chartSeries.set(name, result.points);
       const paths = chartPaths(result.points, range);
       this.shadowRoot.querySelector(`[data-summary-path="${name}"]`).setAttribute("d", paths.line);

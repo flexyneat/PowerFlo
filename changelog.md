@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — explicit daily solar energy
+
+- Label the Today solar-energy summary "Solar energy today" with its existing kWh value; preserve instantaneous kW and Week/Month statistics.
+- Document the daily PV mapping and add UI regression coverage.
+
 ## Unreleased — symmetric connections and communication status
 
 - Mirror upper and lower enclosure-side flow routes while preserving caption clearance and the grid-disconnect marker.

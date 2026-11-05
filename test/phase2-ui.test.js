@@ -16,6 +16,16 @@ function fixture(options={}){
 beforeEach(()=>{vi.useFakeTimers();vi.setSystemTime(new Date("2026-10-19T11:00:00Z"));vi.stubGlobal("matchMedia",()=>({matches:true,addEventListener(){},removeEventListener(){}}));});
 afterEach(()=>{vi.useRealTimers();vi.unstubAllGlobals();});
 describe("Phase 2 UI",()=>{
+ it("labels mapped daily PV energy in kWh without changing instantaneous solar power",()=>{
+  const c=fixture(),id=c.config.entities.solar_today;
+  c.hassValue.states[id].state="6.4";
+  c.updateModel();
+  expect(c.shadowRoot.querySelector('[data-summary-value="solar"]').textContent).toBe("6.4 kWh");
+  expect(c.shadowRoot.querySelector('[data-coverage="solar"]').textContent).toBe("Solar energy today");
+  expect(c.shadowRoot.querySelector('[data-value="solar"]').textContent).toContain("kW");
+  c.period="week";c.updateHistory();
+  expect(c.shadowRoot.querySelector('[data-coverage="solar"]').textContent).not.toBe("Solar energy today");
+ });
  it("shows explained energy adequacy without replacing both charge estimates",()=>{
   const c=fixture(),r=c.shadowRoot;
   expect(r.querySelector('[data-preparedness="available"]').textContent).toBe("9.36 kWh");

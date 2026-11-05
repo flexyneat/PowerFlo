@@ -403,6 +403,8 @@ The offline preview simulates forecasts/weather without network access and start
 
 ## Waveshare sensor mapping coverage
 
+Map `entities.solar_today` to the inverter's **Daily PV production** energy sensor (register 108, 0.1 kWh per raw unit in the supplied Waveshare profile). The Today solar summary displays **Solar energy today**, in **kWh**. This is accumulated generation, not instantaneous `solar_power` in kW. Week/Month continue using their configured energy statistics; do not map a power sensor to `solar_today`.
+
 If the grid panel says **Telemetry interrupted**, gateway data is missing or stale: this does not establish a utility outage. Power flow pauses until fresh reports return. Check whether Wi-Fi, uptime and inverter readings become unavailable together; uninterrupted uptime across a reconnect suggests a communication interruption rather than a gateway reboot. Review ESPHome/network logs before attributing a disconnect to Wi-Fi, the API or Modbus. Do not hide telemetry loss by forcing an online state.
 
 Use actual HA **entity IDs**, not friendly names. The editor exposes every role below. Optional additional electrical readings and daily/lifetime snapshots appear inside **System insights**, preserving the uncluttered topology and both battery estimates. Unmapped roles remain optional; unknown/unavailable reports never become zero.
