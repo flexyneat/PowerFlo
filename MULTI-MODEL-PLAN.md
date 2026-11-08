@@ -16,6 +16,18 @@ Flow: device → adapter → validated canonical observations → local storage/
 
 ## Profile contract
 
+### Mandatory hardware gate for every model
+
+Before creating a usable inverter profile, confirm an onboard RS485 port that exposes **inverter-monitoring Modbus**, not just a BMS/parallel interface. Obtain its official pinout/protocol and model/firmware-specific supported register map, then validate the same Waveshare ESP32-S3-RS485-CAN with a model-specific read-only ESPHome configuration. Reuse the hardware/security framework, not assumed pin assignments, baud rates, register addresses, scales or relay bits. If no physical inverter is available, label deliverables documented/provisional and emulator-tested, never field-validated. A vendor cloud/logger gateway is not intrinsically required where direct monitoring Modbus is documented and accessible.
+
+### Initial investigation: SUN-6.6K-OG03LP1-EU-AM2
+
+Research 8 November 2026; exact user-requested suffix still needs confirmation. Deye's product page lists RS485/CAN. Its linked manual identifies the documented RJ45 as **BMS 485/CAN**, explicitly for battery communication (PDF page 14), and provides BMS pin definitions in Appendix I. The Modbus SN setting is not sufficient evidence of a dedicated monitoring port. Monitoring RTU pinout, shared-port behavior, register map, baud/framing and firmware coverage remain unconfirmed. No current AM3 register/pinout is promoted to this model and no ready-to-flash profile is supplied.
+
+Sources: [official model family](https://www.deyeinverter.com/product/offgrid-inverter/SUN3-3-6-5-6KOG02LP1EUAM1.html), [official manual](https://www.deyeinverter.com/deyeinverter/2026/05/06/BManualSUN-3-66K-OG03LP1-EU-AM220260506EN.pdf).
+
+Next gate: request the manufacturer's monitoring Modbus protocol/register document and designated port/pinout, including whether monitoring needs the optional Wi-Fi/logger interface. After that, prepare fixtures and a separate RS485 Modbus slave emulator for bench tests with the Waveshare. Physical commissioning remains necessary before supported status.
+
 Use declarative, schema-validated versioned JSON rather than executable downloaded profile code. Each profile records:
 
 - Stable profile ID, semantic version, schema version, manufacturer, exact model list and hardware topology.
