@@ -1,78 +1,82 @@
 # Changelog
 
-## Unreleased — explicit daily solar energy
+## 0.6.0 — 2026-11-08
+
+This release includes all changes below since 0.5.0: Phase 2/3 insights and planning, forecast/weather context, estimate-accuracy feedback, gateway recovery and diagnostics, corrected temperature decoding, partial telemetry support, grid-evidence messaging, symmetric flow routes, transition-aware load history and Solar energy today in kWh. Preserve transparent/read-only JavaScript behavior and both battery estimates. Model-profile/API expansion remains proposed, not implemented. Update test-only Happy DOM to 21.0.4 to resolve its high-severity advisories; four moderate development-tool audit findings remain, with no production dependency findings.
+
+### explicit daily solar energy
 
 - Label the Today solar-energy summary "Solar energy today" with its existing kWh value; preserve instantaneous kW and Week/Month statistics.
 - Document the daily PV mapping and add UI regression coverage.
 
-## Unreleased — symmetric connections and communication status
+### symmetric connections and communication status
 
 - Mirror upper and lower enclosure-side flow routes while preserving caption clearance and the grid-disconnect marker.
 - Label stale/missing gateway telemetry as an interruption, not a detected grid outage; keep flow paused until fresh data returns.
 - Add geometric symmetry and interruption/recovery regression coverage.
 
-## Unreleased — Recorder demand continuity
+### Recorder demand continuity
 
 - Render unchanged recorded load states continuously until the next recorded transition, rather than treating sparse state-change rows as communication failures.
 - Preserve explicit unavailable gaps and bound unconfirmed trailing observations; validate fresh current endpoints and retain interval coverage across identical live reports.
 - Add regression tests and clarify recorded-state coverage semantics.
 
-## Unreleased — unambiguous grid header
+### unambiguous grid header
 
 - Omit an unmapped inverter-status prefix from the main grid-status header while retaining the unavailable inverter state internally. No normal/connected state is invented.
 - Add regression coverage; dashboard embedding does not change existing views.
 
-## Unreleased — grid evidence and demand intervals
+### grid evidence and demand intervals
 
 - Add opt-in, labelled voltage/power grid-availability evidence, with explicit connection-signal precedence, fresh-input guards and suspected-outage distinction. Keep inferred events out of the confirmed-relay outage ledger.
 - Draw complete bounded load intervals instead of only their start points; retain genuine gaps.
 - Add configuration/editor support, source-freshness and conflict regression tests, and document inference limitations.
 
-## Unreleased — quadrant boundaries and grid diagnostics
+### quadrant boundaries and grid diagnostics
 
 - Restore theme-native transparent borders around Solar, Battery, Grid and Protected load, with mobile text insets.
 - Distinguish unknown grid connection from unavailable measurements and show reported voltage without inferring connection or starting grid flow.
 
-## Unreleased — partial telemetry commissioning
+### partial telemetry commissioning
 
 - Allow missing inverter-status and grid-connection mappings so valid solar, battery and load telemetry can render without fabricated signals. Unknown grid connection pauses grid flow and remains explicitly unavailable.
 - Preserve all card features and both estimates; add a regression test for omitted status mappings.
 
-## Unreleased — gateway commissioning correction
+### gateway commissioning correction
 
 - Correct omitted -100 °C temperature offset after ×0.1 for battery, AC and DC readings; retain exact-firmware comparison as an acceptance gate and do not rewrite old history.
 - Expose existing load-power candidate by default, add isolated raw status59/relay194 diagnostics and seven per-channel response ages. Preserve strict freshness, native encrypted API/OTA and all read-only protections.
-- No automatic flash, decoded grid/status assertion, power-polarity change, version bump or release.
+- No automatic flash, decoded grid/status assertion or power-polarity change.
 
-## Unreleased — Waveshare sensor coverage
+### Waveshare sensor coverage
 
 - Add optional AC/DC temperature, L2 register voltage, separate inverter output and explicitly unvalidated CT-candidate mappings without changing flow or runtime roles.
 - Add separate daily battery-charge/grid-export and five lifetime energy snapshots inside System insights; retain report timestamps, unit validation and stale instantaneous states.
-- Preserve all existing features, transparent surfaces, JavaScript-only read-only behavior and both battery estimates; update mapping documentation, tests and illustrative offline demo. No version bump or release.
+- Preserve all existing features, transparent surfaces, JavaScript-only read-only behavior and both battery estimates; update mapping documentation, tests and illustrative offline demo.
 
-## Unreleased — gateway recovery and local diagnostics
+### gateway recovery and local diagnostics
 
 - Add password-protected fallback Wi-Fi after 90 seconds with a captive recovery portal; document its administrative firmware-upload boundary.
 - Add local embedded v3 web diagnostics with Digest authentication, private secret placeholders, hidden internal entities and disabled web log streaming.
 - Disable regular LAN web OTA; retain encrypted native API/OTA, safe mode, existing reboot behavior, UART/RS485 settings and read-only register map.
-- Update setup/recovery/security documentation and commissioning regression tests. No device flashed, version bump or tagged release in this change.
+- Update setup/recovery/security documentation and commissioning regression tests. No device flashed.
 
-## Unreleased — Precision refresh / Phase 3
+### Precision refresh / Phase 3
 
 - Refresh transparent layout with quieter typography, open zones, compact mobile artwork and caption-safe lower flow routes; preserve all existing features and both visible battery estimates.
 - Add lazy read-only HA Energy solar source selection, interval normalization, measured/forecast overlay, Today/Tomorrow inspection, coverage/provenance and contextual hourly weather.
 - Preserve baseline charge/runtime/readiness logic; weather is not a second PV derating or an undisclosed battery-energy forecast.
 - Add frozen qualified charge/reserve outcomes and separate 30-minute SOC feedback, censoring and bounded opt-in user/card-local retention. No auto-calibration or equipment writes.
-- Update editor, edge-case regressions, simulated offline demo, README and commissioning notes. Keep 0.5.0 pending explicit release authorization.
+- Update editor, edge-case regressions, simulated offline demo, README and commissioning notes.
 
-## Unreleased — Phase 2
+### Phase 2
 
 - Extend the existing readiness disclosure with outage energy availability, demand, margin and explicit unassessed power/surge capability; preserve assumptions and both battery estimates.
 - Add an independent `preparedness_enabled` display preference that leaves the simulator available; retain the legacy readiness master switch.
 - Add opt-in equivalent-period chart overlays/deltas using filtered Recorder and long-term statistics reads, bounded caching, cancellation, matched coverage and conservative calendar/DST handling.
 - Add on-demand Grid insights with qualified live-session sustained-export observations and explicit standby measurement/manual-assumption provenance; never infer measured standby from AC/DC residuals.
 - Preserve transparent surfaces, all existing features, JavaScript-only implementation and read-only equipment behavior. Update simulated offline export, configuration documentation and regression coverage.
-- Keep package/release version at 0.5.0 pending explicit release authorization; development demos identify themselves as Phase 2 previews.
+- Include the Phase 2 implementation in the 0.6.0 release and its simulated offline demo.
 
 ## 0.5.0
 

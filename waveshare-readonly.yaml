@@ -57,7 +57,7 @@ esphome:
   comment: "Read-only Deye SG02LP1 telemetry via isolated RS485"
   project:
     name: local.deye-readonly
-    version: "0.4.0"
+    version: "0.6.0"
 
 esp32:
   variant: esp32s3
